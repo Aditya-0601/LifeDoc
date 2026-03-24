@@ -4,6 +4,47 @@
   const { motion } = window.Motion;
 
   const Register = () => {
+    const { useNavigate } = window.Router;
+    const { useState } = window.React;
+    const navigate = useNavigate();
+
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleRegister = async (e) => {
+      e.preventDefault();
+      setError('');
+      setLoading(true);
+
+      try {
+        const response = await fetch('http://localhost:5000/api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name, email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.message || 'Registration failed');
+        }
+        
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+        navigate('/dashboard');
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-mesh p-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-cyan-700/20 rounded-full blur-[120px] pointer-events-none" />
@@ -25,11 +66,19 @@
               <p className="text-slate-400 text-sm">Setup your secure end-to-end encrypted account</p>
             </div>
 
-            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); window.location.hash = "#/dashboard"; }}>
+            {error && (
+              <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 rounded-lg p-3 text-sm">
+                {error}
+              </div>
+            )}
+
+            <form className="space-y-4" onSubmit={handleRegister}>
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">Full Name</label>
                 <input
                   type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
                   placeholder="Jane Doe"
                   required
@@ -40,6 +89,8 @@
                 <label className="block text-sm font-medium text-slate-300 mb-1">Email address</label>
                 <input
                   type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
                   placeholder="name@example.com"
                   required
@@ -50,14 +101,16 @@
                 <label className="block text-sm font-medium text-slate-300 mb-1">Master Password</label>
                 <input
                   type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
                   placeholder="••••••••"
                   required
                 />
               </div>
 
-              <Button type="submit" variant="primary" className="w-full mt-6">
-                Generate Secure Keys
+              <Button type="submit" variant="primary" className="w-full mt-6" disabled={loading}>
+                {loading ? 'Generating...' : 'Generate Secure Keys'}
               </Button>
             </form>
 
