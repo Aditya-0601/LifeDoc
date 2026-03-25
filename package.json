@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon server/index.js",
-    "client": "npm start --prefix client",
-    "build": "npm run build --prefix client",
+    "client": "npx serve -s client -p 3000",
+    "build": "echo 'No build step needed for CDN-based React'",
     "install-all": "npm install && cd client && npm install"
   },
   "keywords": [
