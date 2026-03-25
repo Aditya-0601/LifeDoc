@@ -1,0 +1,178 @@
+.deadline-list {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.deadline-list h2 {
+  margin-top: 0;
+  color: #333;
+  margin-bottom: 25px;
+}
+
+.deadlines-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.deadline-card {
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 20px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+
+.deadline-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.deadline-card.urgent {
+  border-color: #ff6b6b;
+  background: #fff5f5;
+}
+
+.deadline-card.soon {
+  border-color: #ffa94d;
+  background: #fffbf0;
+}
+
+.deadline-card.overdue {
+  border-color: #c33;
+  background: #ffe5e5;
+}
+
+.deadline-card.completed {
+  opacity: 0.6;
+  border-color: #51cf66;
+}
+
+.deadline-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.deadline-icon {
+  font-size: 2em;
+}
+
+.deadline-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.complete-btn,
+.delete-btn {
+  background: none;
+  border: none;
+  font-size: 1.2em;
+  cursor: pointer;
+  padding: 5px 10px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+  border-radius: 6px;
+}
+
+.complete-btn:hover:not(:disabled),
+.delete-btn:hover:not(:disabled) {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.complete-btn.completed {
+  color: #51cf66;
+  opacity: 1;
+}
+
+.deadline-card h3 {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 1.2em;
+}
+
+.deadline-category {
+  color: #667eea;
+  font-weight: 600;
+  font-size: 0.9em;
+  margin: 0 0 15px 0;
+  text-transform: capitalize;
+}
+
+.deadline-date-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.deadline-date {
+  font-weight: 600;
+  color: #333;
+}
+
+.days-until {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.days-until.normal {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.days-until.soon {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.days-until.urgent {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.days-until.overdue {
+  background: #ffcdd2;
+  color: #c33;
+  font-weight: 700;
+}
+
+.deadline-description {
+  color: #666;
+  font-size: 0.95em;
+  margin: 0 0 10px 0;
+  word-break: break-word;
+}
+
+.linked-document {
+  background: #f5f7fa;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.9em;
+  color: #555;
+  margin-bottom: 10px;
+}
+
+.reminder-info {
+  color: #999;
+  font-size: 0.85em;
+  margin: 0;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #999;
+}
+
+.empty-state p {
+  font-size: 1.1em;
+}

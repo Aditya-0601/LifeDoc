@@ -93,12 +93,14 @@ const createTables = () => {
 
     try {
       for (let i = 0; i < queries.length; i++) {
+        const tableName = queries[i].match(/CREATE TABLE IF NOT EXISTS (\w+)/)[1];
+        console.log(`🛠️ Creating/verifying table: ${tableName}...`);
         await pool.query(queries[i]);
       }
-      console.log('✅ PostgreSQL Database tables created/verified');
+      console.log('✅ All PostgreSQL Database tables created/verified successfully');
       resolve();
     } catch (err) {
-      console.error('Error creating tables:', err);
+      console.error('❌ Error creating tables:', err.message);
       reject(err);
     }
   });

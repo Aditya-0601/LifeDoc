@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon server/index.js",
-    "client": "cd client && npm start",
-    "build": "cd client && npm run build",
+    "client": "npm start --prefix client",
+    "build": "npm run build --prefix client",
     "install-all": "npm install && cd client && npm install"
   },
   "keywords": [
