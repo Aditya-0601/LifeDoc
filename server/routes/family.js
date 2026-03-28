@@ -5,7 +5,7 @@ const { getDb } = require('../config/database');
 const router = express.Router();
 
 // Add family member access
-router.post('/access', authenticate, async (req, res) => {
+router.post('/request', authenticate, async (req, res) => {
   try {
     const { family_member_email, family_member_name } = req.body;
 
@@ -22,6 +22,17 @@ router.post('/access', authenticate, async (req, res) => {
       [req.userId, family_member_email, family_member_name, access_code]
     );
 
+    await pool.query(
+      `INSERT INTO notifications (user_id, title, description, type)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        req.userId,
+        'Family Member Access Granted',
+        `${family_member_name} (${family_member_email}) was granted access via code ${access_code}.`,
+        'family'
+      ]
+    );
+
     res.status(201).json({
       message: 'Family access created successfully',
       access: {
@@ -29,6 +40,7 @@ router.post('/access', authenticate, async (req, res) => {
         family_member_email,
         family_member_name,
         access_code,
+        status: 'pending',
         is_active: true
       }
     });
@@ -39,11 +51,11 @@ router.post('/access', authenticate, async (req, res) => {
 });
 
 // Get all family access entries
-router.get('/access', authenticate, async (req, res) => {
+router.get('/', authenticate, async (req, res) => {
   try {
     const pool = getDb();
     const { rows } = await pool.query(
-      'SELECT id, family_member_email, family_member_name, access_code, is_active, created_at FROM family_access WHERE user_id = $1',
+      'SELECT id, family_member_email, family_member_name, access_code, is_active, status, created_at FROM family_access WHERE user_id = $1',
       [req.userId]
     );
     res.json({ accesses: rows });
@@ -53,29 +65,40 @@ router.get('/access', authenticate, async (req, res) => {
   }
 });
 
-// Toggle family access (activate/deactivate)
-router.put('/access/:id', authenticate, async (req, res) => {
+// Approve family access
+router.put('/:id/approve', authenticate, async (req, res) => {
   try {
-    const { is_active } = req.body;
     const pool = getDb();
-
     const { rowCount } = await pool.query(
-      'UPDATE family_access SET is_active = $1 WHERE id = $2 AND user_id = $3',
-      [is_active ? 1 : 0, req.params.id, req.userId]
+      "UPDATE family_access SET status = 'approved' WHERE id = $1 AND user_id = $2",
+      [req.params.id, req.userId]
     );
     
-    if (rowCount === 0) {
-      return res.status(404).json({ error: 'Family access not found' });
-    }
-    
-    res.json({ message: 'Family access updated successfully' });
+    if (rowCount === 0) return res.status(404).json({ error: 'Family access not found' });
+    res.json({ message: 'Family access approved' });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// Delete family access
-router.delete('/access/:id', authenticate, async (req, res) => {
+// Reject family access
+router.put('/:id/reject', authenticate, async (req, res) => {
+  try {
+    const pool = getDb();
+    const { rowCount } = await pool.query(
+      "UPDATE family_access SET status = 'rejected' WHERE id = $1 AND user_id = $2",
+      [req.params.id, req.userId]
+    );
+    
+    if (rowCount === 0) return res.status(404).json({ error: 'Family access not found' });
+    res.json({ message: 'Family access rejected' });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Delete family access (Legacy access method if needed)
+router.delete('/:id', authenticate, async (req, res) => {
   try {
     const pool = getDb();
     const { rowCount } = await pool.query(

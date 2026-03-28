@@ -60,7 +60,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res) => 
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const { title, category, description } = req.body;
+    const { title, category, description, expiry_date } = req.body;
     const pool = getDb();
 
     let finalFilePath = req.file.path;
@@ -106,8 +106,8 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res) => 
 
     try {
       const result = await pool.query(
-        `INSERT INTO documents (user_id, title, category, file_name, file_path, file_size, mime_type, description)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at`,
+        `INSERT INTO documents (user_id, title, category, file_name, file_path, file_size, mime_type, description, expiry_date)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at`,
         [
           req.userId,
           title || req.file.originalname,
@@ -116,7 +116,8 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res) => 
           relativePath,
           finalSize,
           req.file.mimetype,
-          description || ''
+          description || '',
+          expiry_date || null
         ]
       );
 
@@ -150,6 +151,28 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res) => 
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Search documents
+router.get('/search', authenticate, async (req, res) => {
+  try {
+    const pool = getDb();
+    const { q } = req.query;
+    
+    if (!q) {
+      return res.json({ documents: [] });
+    }
+
+    const { rows } = await pool.query(
+      'SELECT * FROM documents WHERE user_id = $1 AND (title ILIKE $2 OR category ILIKE $2 OR description ILIKE $2) ORDER BY created_at DESC',
+      [req.userId, `%${q}%`]
+    );
+    
+    res.json({ documents: rows });
+  } catch (error) {
+    console.error('Search Documents Error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

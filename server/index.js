@@ -24,7 +24,10 @@ db.init();
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/documents', require('./routes/documents'));
 app.use('/api/deadlines', require('./routes/deadlines'));
-app.use('/api/family', require('./routes/family'));
+app.use('/api/reminders', require('./routes/reminders'));
+app.use('/api/family-access', require('./routes/family'));
+app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/admin', require('./routes/admin'));
 
 // Health check
 app.get('/api/health', (req, res) => {

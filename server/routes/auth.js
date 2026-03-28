@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getDb } = require('../config/database');
 const { sendOTP } = require('../utils/mailer');
+const { authenticate } = require('../middleware/auth');
 const router = express.Router();
 
 // Helper to generate a 6 digit OTP
@@ -133,6 +134,24 @@ router.post('/verify-otp', async (req, res) => {
     });
   } catch (error) {
     console.error('OTP Verification error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get current user
+router.get('/me', authenticate, async (req, res) => {
+  try {
+    const pool = getDb();
+    const { rows } = await pool.query('SELECT id, email, name, created_at FROM users WHERE id = $1', [req.userId]);
+    const user = rows[0];
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json({ user });
+  } catch (error) {
+    console.error('Get user error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

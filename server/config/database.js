@@ -78,6 +78,7 @@ const createTables = () => {
         family_member_name VARCHAR(255) NOT NULL,
         access_code VARCHAR(255) UNIQUE NOT NULL,
         is_active INTEGER DEFAULT 1,
+        status VARCHAR(20) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       
@@ -88,6 +89,17 @@ const createTables = () => {
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         reminder_date DATE NOT NULL,
         sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      
+      // Notifications table
+      `CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        type VARCHAR(50) NOT NULL,
+        is_read INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     ];
 
@@ -97,6 +109,23 @@ const createTables = () => {
         console.log(`🛠️ Creating/verifying table: ${tableName}...`);
         await pool.query(queries[i]);
       }
+      
+      // Add missing columns if they didn't exist in the previous schema
+      try {
+        await pool.query('ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1');
+        console.log('✅ Added is_active column to users table');
+      } catch(e) { /* Ignore if it already exists */ }
+      
+      try {
+        await pool.query('ALTER TABLE documents ADD COLUMN expiry_date DATE');
+        console.log('✅ Added expiry_date column to documents table');
+      } catch(e) { /* Ignore if it already exists */ }
+      
+      try {
+        await pool.query("ALTER TABLE family_access ADD COLUMN status VARCHAR(20) DEFAULT 'pending'");
+        console.log('✅ Added status column to family_access table');
+      } catch(e) { /* Ignore if it already exists */ }
+
       console.log('✅ All PostgreSQL Database tables created/verified successfully');
       resolve();
     } catch (err) {
