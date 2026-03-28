@@ -1,0 +1,72 @@
+# LifeDoc Architecture: How Data Flows
+
+Ah, I understand now! You want to know exactly **what happens under the hood** when you click "Upload" and how the frontend, backend, and database actually talk to each other.
+
+Here is the exact lifecycle of how data moves through this application.
+
+---
+
+## 1. The Frontend (React via Axios)
+The frontend never talks to the database directly (this is a massive security risk). Instead, it talks to your Node.js backend using HTTP requests (GET, POST, PUT, DELETE). We centralized this in `js/services/api.js`.
+
+When you upload a document, React triggers a **POST Request**:
+```javascript
+// Example of how React sends data:
+await window.api.post('/documents/upload', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' } // Special header for files
+});
+```
+
+---
+
+## 2. The Backend (Node.js & Express)
+The backend acts as the middleman. It receives the POST request on port 5000 and processes it using a library called **Multer**.
+
+### Where does the actual PDF/JPG file go?
+The actual file **IS NOT** saved in the PostgreSQL database! Databases are terrible at holding massive files. 
+Instead, Multer captures the file from the HTTP request and saves it physically to your hard drive inside the `/uploads` folder.
+
+Specifically, it creates a folder based on your User ID for security:
+`c:\Users\adity\Desktop\SE\uploads\<user_id>\document-12345.pdf`
+
+---
+
+## 3. The Database (PostgreSQL)
+Once the physical file is safely saved in the `/uploads` folder, the backend needs a way to remember *where* it put it, who owns it, and what it's called.
+
+This is where the database comes in. The backend uses the `pg` (Node-Postgres) library to run an **SQL INSERT query**. 
+
+```javascript
+// Example Backend Logic inside server/routes/documents.js
+const relativePath = `/uploads/1/document-12345.pdf`;
+
+await pool.query(
+  `INSERT INTO documents (user_id, title, file_path, file_size, expiry_date)
+   VALUES ($1, $2, $3, $4, $5)`,
+  [req.userId, "My Passport", relativePath, 1048576, '2026-12-01']
+);
+```
+
+### What Postgres Does:
+PostgreSQL simply adds a tiny row of text (metadata) to the `documents` table:
+`[ID: 1 | User: 1 | Title: Passport | Path: /uploads/1/document-12345.pdf]`
+
+---
+
+## 4. Retrieving Data (The GET Command)
+Later, when you open the "Documents" tab on the website, here is how the data flows backwards:
+
+1. **Frontend**: Sends a `GET /api/documents` request.
+2. **Backend**: Runs a SQL Query: `SELECT * FROM documents WHERE user_id = 1;`
+3. **Database**: Returns the rows of metadata containing the `file_path`.
+4. **Backend**: Sends the metadata back to React as JSON.
+5. **Frontend**: React builds the HTML layout using that data, creating a download button that points to `http://localhost:5000/uploads/1/document-12345.pdf`.
+
+### Summary of the "Commands" used:
+- **POST**: Pushing entirely new data (Uploading a document, Creating an account).
+- **GET**: Retrieving data (Loading the dashboard stats, fetching the family members list).
+- **PUT**: Updating existing data (Changing a family invite state from Pending to Approved).
+- **DELETE**: Destroying data (Trashing an old document).
+
+### Why Do It This Way?
+By keeping physical 5MB images on the hard drive and a tiny 50-byte string of text in the PostgreSQL database, your application stays lightning fast. The database only acts as a hyper-organized index/map of where everything lives.
