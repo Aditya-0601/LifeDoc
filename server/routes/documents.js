@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
 const Tesseract = require('tesseract.js');
+const pdfParse = require('pdf-parse');
 const { authenticate } = require('../middleware/auth');
 const { getDb } = require('../config/database');
 const router = express.Router();
@@ -100,6 +101,18 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res) => 
         console.error('Error during compression or OCR:', err);
         // Fallback to storing uncompressed image if it fails
       }
+    } else if (ext === '.pdf') {
+      try {
+        console.log(`Running PDF parsing on uploaded document: ${req.file.originalname}...`);
+        const dataBuffer = fs.readFileSync(req.file.path);
+        const data = await pdfParse(dataBuffer);
+        detectedExpiryDate = extractDateFromText(data.text);
+        if (detectedExpiryDate) {
+          console.log(`✅ PDF parse detected potential date: ${detectedExpiryDate}`);
+        }
+      } catch (err) {
+        console.error('Error during PDF parsing:', err);
+      }
     }
 
     const relativePath = `/uploads/${req.userId}/${req.file.filename}`;
@@ -122,6 +135,27 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res) => 
       );
 
       const newDoc = result.rows[0];
+
+      if (detectedExpiryDate) {
+        try {
+          await pool.query(
+            `INSERT INTO deadlines (user_id, document_id, title, description, deadline_date, reminder_days, category)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [
+              req.userId,
+              newDoc.id,
+              `Renew: ${title || req.file.originalname}`,
+              `Automatically created reminder for document expiry`,
+              detectedExpiryDate,
+              30,
+              category || 'other'
+            ]
+          );
+          console.log('✅ Automated reminder created for expiry date:', detectedExpiryDate);
+        } catch (dbErr) {
+          console.error('Error automatically creating deadline:', dbErr);
+        }
+      }
 
       res.status(201).json({
         message: 'Document uploaded successfully',

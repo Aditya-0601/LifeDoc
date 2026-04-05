@@ -10,6 +10,8 @@
     
     const [email, setEmail] = useState('demo@lifedoc.com');
     const [password, setPassword] = useState('password');
+    const [otp, setOtp] = useState('');
+    const [showOTP, setShowOTP] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -30,7 +32,43 @@
         const data = await response.json();
         
         if (!response.ok) {
-          throw new Error(data.message || 'Login failed');
+          throw new Error(data.message || data.error || 'Login failed');
+        }
+        
+        if (data.requiresOTP) {
+          setShowOTP(true);
+          return;
+        }
+        
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+        navigate('/dashboard');
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleVerifyOTP = async (e) => {
+      e.preventDefault();
+      setError('');
+      setLoading(true);
+
+      try {
+        const response = await fetch('http://localhost:5000/api/auth/verify-otp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, otp })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'OTP verification failed');
         }
         
         localStorage.setItem('token', data.token);
@@ -72,42 +110,70 @@
               </div>
             )}
 
-            <form className="space-y-5" onSubmit={handleLogin}>
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Email address</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
-                  placeholder="name@example.com"
-                  required
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-sm font-medium text-slate-300">Password</label>
-                  <a href="#" className="text-xs text-cyan-400 hover:text-cyan-300">Forgot password?</a>
+            {!showOTP ? (
+              <form className="space-y-5" onSubmit={handleLogin}>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Email address</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
+                    placeholder="name@example.com"
+                    required
+                  />
                 </div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
 
-              <Button type="submit" variant="primary" className="w-full mt-4" disabled={loading}>
-                {loading ? 'Unlocking...' : 'Unlock Vault'}
-              </Button>
-            </form>
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-slate-300">Password</label>
+                    <a href="#" className="text-xs text-cyan-400 hover:text-cyan-300">Forgot password?</a>
+                  </div>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
 
-            <p className="mt-8 text-center text-sm text-slate-400">
-              Don't have an account? <Link to="/register" className="text-cyan-400 font-medium hover:underline">Create one</Link>
-            </p>
+                <Button type="submit" variant="primary" className="w-full mt-4" disabled={loading}>
+                  {loading ? 'Unlocking...' : 'Unlock Vault'}
+                </Button>
+                
+                <p className="mt-8 text-center text-sm text-slate-400">
+                  Don't have an account? <Link to="/register" className="text-cyan-400 font-medium hover:underline">Create one</Link>
+                </p>
+              </form>
+            ) : (
+              <form className="space-y-5" onSubmit={handleVerifyOTP}>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Enter Verification Code</label>
+                  <p className="text-xs text-slate-400 mb-4">We've sent a 6-digit code to your email.</p>
+                  <input
+                    type="text"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all text-center tracking-widest text-xl"
+                    placeholder="------"
+                    maxLength={6}
+                    required
+                  />
+                </div>
+
+                <Button type="submit" variant="primary" className="w-full mt-4" disabled={loading}>
+                  {loading ? 'Verifying...' : 'Verify & Enter Vault'}
+                </Button>
+
+                <div className="mt-4 text-center">
+                  <button type="button" onClick={() => setShowOTP(false)} className="text-xs text-slate-400 hover:text-white transition-colors">
+                    Back to login
+                  </button>
+                </div>
+              </form>
+            )}
           </GlassCard>
         </motion.div>
       </div>
