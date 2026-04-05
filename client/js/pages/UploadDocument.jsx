@@ -21,7 +21,7 @@
       setMessage('');
 
       const formData = new FormData();
-      formData.append('document', file);
+      formData.append('file', file);
       // Hardcode category and title for now, or you can add inputs later
       formData.append('category', 'General');
       formData.append('title', file.name);
@@ -74,7 +74,8 @@
             type="file" 
             ref={fileInputRef} 
             style={{ display: 'none' }} 
-            onChange={handleFileChange} 
+            onChange={handleFileChange}
+            onClick={(e) => e.stopPropagation()}
           />
           
           <div className="w-20 h-20 rounded-full bg-cyan-500/10 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(6,182,212,0.1)]">
