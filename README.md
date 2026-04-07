@@ -11,10 +11,28 @@ LifeDoc acts as a highly secure digital vault, keeping your family's most import
 ## ✨ Key Features
 
 - **Secure Digital Vault**: Safely store, search, and categorize all your critical documents in one centralized ecosystem.
-- **Expiry Radar & Proactive Alerts**: Advanced background chron jobs autonomously monitor document expiration dates and dispatch Smart Alerts at 30, 14, 7, and 1 days prior to deadlines. Never miss a renewal again.
+- **Expiry Radar & Proactive Alerts**: Advanced background cron jobs autonomously monitor document expiration dates and dispatch Smart Alerts at 30, 14, 7, and 1 days prior to deadlines. Never miss a renewal again.
 - **Emergency Family Access**: Securely grant vault access to family members. Features a robust approval workflow mapping structured relational states (Pending, Approved, Revoked).
 - **Comprehensive Admin Dashboard**: Complete administrative oversight including real-time storage metrics, active vault tallies, document moderation, and instant user access controls.
 - **Stunning UI Architecture**: Built with a modern Glassmorphism design system powered by Tailwind CSS. Features high-performance, scroll-driven hero animations engineered using GSAP and Framer Motion.
+- **2FA & Email Services**: Implements secure OTP based login for 2-Factor Authentication utilizing customized email dispatches.
+
+---
+
+## 🛠️ Architecture & Tech Stack
+
+### Backend Ecosystem
+- **Core Runtime**: Node.js & Express.js
+- **Database**: PostgreSQL (interfaced via `pg`) with automated schema migrations across complex relations.
+- **Security Checksums**: JWT for robust route authentication, `bcryptjs` for strict password hashing.
+- **File & Image Processing**: `multer` handling secure multipart-form data, `pdf-parse` & `tesseract.js` for text extraction.
+- **Background Jobs**: `node-cron` executing automated expiration sweeps.
+
+### Frontend Ecosystem
+- **Framework**: React 18
+- **Styling**: Tailwind CSS
+- **Interactivity**: Framer Motion & GSAP for timeline sequencing.
+- **API Connectivity**: Axios interceptors automatically injecting JWT signatures across all internal HTTP requests.
 
 ---
 
@@ -44,20 +62,29 @@ Before running this project, ensure you have the following installed on your mac
    
    # API Port Configuration
    PORT=5000
+
+   # SMTP Configuration for Emails & OTP (Optional)
+   # If not provided, emails will be logged to the console
+   SMTP_HOST=smtp.example.com
+   SMTP_PORT=587
+   SMTP_USER=your_email@example.com
+   SMTP_PASS=your_email_password
    ```
 
 ### Installation
 
-Navigate to the root directory of this project in your terminal and install the required Node dependencies:
+Navigate to the root directory of this project in your terminal and install the required Node dependencies. 
 ```bash
 npm install
 ```
 
+> **Troubleshooting:** If the project fails to start with "Cannot find module" errors (e.g., `pdf-parse`, `pg`), ensure your `npm install` finished successfully. You may need to delete `node_modules` and `package-lock.json` and reinstall if corruption occurred.
+
 ---
 
-## 🛠️ Running the Application
+## 💻 Running the Application
 
-This project utilizes a highly decoupled architecture, requiring both the Node.js API and the React Client node to be served. For convenience, the `package.json` includes a concurrent script.
+This project utilizes a highly decoupled architecture, requiring both the Node.js API and the React Client to be served. For convenience, the `package.json` includes a concurrent script.
 
 To launch the entire stack simultaneously, execute:
 
@@ -70,22 +97,6 @@ npm run dev
 ### Accessing the Platform
 Once the startup sequence completes, open your web browser and navigate to:
 **[http://localhost:3000](http://localhost:3000)**
-
----
-
-## 📁 Architecture Highlights
-
-### Backend Ecosystem
-- **Core Runtime**: Node.js & Express.js
-- **Database**: PostgreSQL (interfaced via `pg`) with automated schema migrations.
-- **Security Checksums**: JWT for robust route authentication and `bcryptjs` for strict password hashing.
-- **File Management**: `multer` handling secure multipart-form data.
-
-### Frontend Ecosystem
-- **Framework**: React 18 
-- **Styling**: Tailwind CSS
-- **Interactivity**: Framer Motion & GSAP for timeline sequencing.
-- **API Connectivity**: Axiomatic client request interceptors automatically injecting JWT signatures natively across all internal HTTP requests.
 
 ---
 
