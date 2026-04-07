@@ -1,5 +1,5 @@
 // Safe isolation
-(function() {
+(function () {
   const { createElement: h } = React;
 
   const Icons = {
