@@ -1,5 +1,5 @@
 (function () {
-  const { GlassCard, Button, Icons } = window;
+  const { GlassCard, Button, Icons, DocumentPreviewModal } = window;
   const { motion } = window.Motion;
   const { useState, useEffect } = window.React;
   const { Link } = window.Router;
@@ -10,6 +10,8 @@
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("All Categories");
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedDoc, setSelectedDoc] = useState(null);
 
     const fetchDocuments = async () => {
       try {
@@ -67,10 +69,10 @@
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     };
 
-    const handleDownload = (path, e) => {
+    const handlePreview = (doc, e) => {
       e.stopPropagation();
-      // Simple link to download
-      window.open(`http://localhost:5000${path}`, '_blank');
+      setSelectedDoc(doc);
+      setIsModalOpen(true);
     };
 
     return (
@@ -136,7 +138,7 @@
                   <Icons.Trash size={16} />
                 </div>
                 
-                <div className="cursor-pointer" onClick={(e) => handleDownload(doc.file_path, e)}>
+                <div className="cursor-pointer" onClick={(e) => handlePreview(doc, e)}>
                   <div className="w-12 h-12 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-cyan-500/20 transition-all">
                     <Icons.FileText size={20} />
                   </div>
@@ -152,6 +154,12 @@
             ))}
           </div>
         )}
+        
+        <DocumentPreviewModal 
+          isOpen={isModalOpen} 
+          onClose={() => setIsModalOpen(false)} 
+          document={selectedDoc} 
+        />
       </motion.div>
     );
   };
