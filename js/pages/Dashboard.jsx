@@ -123,10 +123,10 @@
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <GlassCard className="flex flex-col">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <GlassCard className="flex flex-col hover:-translate-y-1 hover:shadow-lg hover:shadow-cyan-500/10 transition-all duration-300">
             <div className="flex justify-between items-center mb-4">
-              <span className="text-slate-400 font-medium">Total Documents</span>
+              <span className="text-slate-400 font-bold uppercase tracking-wider text-xs">Total Documents</span>
               <Icons.FileText className="text-cyan-400" size={20} />
             </div>
             <div className="text-4xl font-display font-bold text-white mb-2">{stats.totalDocs}</div>
@@ -136,12 +136,12 @@
                 style={{ width: `${Math.min((stats.usedBytes / (50 * 1024 * 1024 * 1024)) * 100, 100)}%` }}
               ></div>
             </div>
-            <p className="text-xs text-slate-500 mt-2">{formatBytes(stats.usedBytes)} of 50 GB used</p>
+            <p className="text-xs text-slate-500 mt-2 font-medium">{formatBytes(stats.usedBytes)} of 50 GB used</p>
           </GlassCard>
 
-          <GlassCard className="flex flex-col">
+          <GlassCard className="flex flex-col hover:-translate-y-1 hover:shadow-lg hover:shadow-red-500/10 transition-all duration-300">
             <div className="flex justify-between items-center mb-4">
-              <span className="text-slate-400 font-medium">Expiring Soon</span>
+              <span className="text-slate-400 font-bold uppercase tracking-wider text-xs">Expiring Soon</span>
               <Icons.Calendar className="text-red-400" size={20} />
             </div>
             <div className="text-4xl font-display font-bold pl-1 text-white mb-2">{stats.expiringSoon}</div>
@@ -152,20 +152,20 @@
             )}
           </GlassCard>
 
-          <GlassCard className="flex flex-col relative overflow-hidden text-center justify-center border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-transparent" />
-            <Icons.Shield className="w-12 h-12 text-emerald-400 mx-auto mb-3 relative z-10" />
+          <GlassCard className="flex flex-col relative overflow-hidden text-center justify-center border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(16,185,129,0.2)] transition-all duration-300 group">
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-transparent opacity-50 group-hover:opacity-100 transition-opacity" />
+            <Icons.Shield className="w-12 h-12 text-emerald-400 mx-auto mb-3 relative z-10 group-hover:scale-110 transition-transform" />
             <h3 className="font-display font-bold text-emerald-400 text-lg relative z-10">Vault Encrypted</h3>
-            <p className="text-xs text-slate-400 relative z-10">AES-256 Grade Security active</p>
+            <p className="text-xs text-slate-400 relative z-10 font-medium">AES-256 Grade Security active</p>
           </GlassCard>
-        </div>
+        </motion.div>
 
         <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-2"></div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
           <div className="flex flex-col h-full">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-display font-bold text-white">Recent Activity</h2>
+            <h2 className="text-xl font-display font-extrabold text-white tracking-tight">Recent Activity</h2>
             <button onClick={() => window.location.hash = "#/dashboard/documents"} className="text-sm text-cyan-400 hover:text-cyan-300">View All →</button>
           </div>
           
@@ -218,7 +218,7 @@
 
           <div className="flex flex-col h-full">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-display font-bold text-white">Upcoming Expiry</h2>
+              <h2 className="text-xl font-display font-extrabold text-white tracking-tight">Upcoming Expiry</h2>
               <button onClick={() => window.location.hash = "#/dashboard/reminders"} className="text-sm text-cyan-400 hover:text-cyan-300">View All →</button>
             </div>
             
@@ -279,7 +279,7 @@
               )}
             </GlassCard>
           </div>
-        </div>
+        </motion.div>
       </motion.div>
     );
   };
