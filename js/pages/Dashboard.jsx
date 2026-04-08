@@ -20,6 +20,7 @@
     const { user } = useAuth();
     const [stats, setStats] = useState({ totalDocs: 0, expiringSoon: 0, usedBytes: 0 });
     const [recentUploads, setRecentUploads] = useState([]);
+    const [upcomingExpiries, setUpcomingExpiries] = useState([]);
     const [hasUnread, setHasUnread] = useState(false);
     const [loading, setLoading] = useState(true);
 
@@ -49,6 +50,11 @@
 
           // Get top 5 recent uploads
           setRecentUploads(docs.slice(0, 5));
+
+          // Filter and compute upcoming expiry dates from documents
+          const docsWithExpiry = docs.filter(d => d.expiry_date);
+          docsWithExpiry.sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
+          setUpcomingExpiries(docsWithExpiry.slice(0, 5));
         } catch (error) {
           console.error("Failed to load dashboard data:", error);
         } finally {
@@ -141,7 +147,8 @@
           </GlassCard>
         </div>
 
-        <div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div>
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-display font-bold text-white">Recent Activity</h2>
             <button onClick={() => window.location.hash = "#/dashboard/documents"} className="text-sm text-cyan-400 hover:text-cyan-300">View All →</button>
@@ -192,6 +199,68 @@
               </div>
             )}
           </GlassCard>
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-display font-bold text-white">Upcoming Expiry</h2>
+              <button onClick={() => window.location.hash = "#/dashboard/reminders"} className="text-sm text-cyan-400 hover:text-cyan-300">View All →</button>
+            </div>
+            
+            <GlassCard className="p-0 overflow-hidden">
+              {upcomingExpiries.length === 0 ? (
+                <div className="p-12 flex flex-col items-center justify-center text-center border-dashed border-2 border-white/5 m-4 rounded-xl relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  <div className="w-16 h-16 bg-navy-900 rounded-full flex items-center justify-center mb-4 border border-white/10 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                    <Icons.Shield size={24} className="text-emerald-400" />
+                  </div>
+                  <h3 className="text-white font-semibold mb-2">No upcoming expiries</h3>
+                  <p className="text-slate-400 text-sm max-w-sm">All your tracked documents are currently safe. Upload documents with expiry dates to track them here.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-white/5">
+                  {upcomingExpiries.map((doc, i) => {
+                    const daysDiff = Math.ceil((new Date(doc.expiry_date) - new Date()) / (1000 * 60 * 60 * 24));
+                    let statusColor = 'emerald';
+                    let statusLabel = 'Safe';
+                    if (daysDiff < 0) {
+                      statusColor = 'red';
+                      statusLabel = 'Expired';
+                    } else if (daysDiff <= 30) {
+                      statusColor = 'amber';
+                      statusLabel = 'Expiring Soon';
+                    }
+
+                    return (
+                      <motion.div 
+                        initial={{ opacity: 0, x: 10 }} 
+                        animate={{ opacity: 1, x: 0 }} 
+                        transition={{ delay: i * 0.05 }}
+                        key={'exp_'+doc.id} 
+                        className="group flex items-center justify-between p-4 px-6 hover:bg-white/[0.02] transition-colors duration-300 relative overflow-hidden"
+                      >
+                        <div className={`absolute left-0 top-0 bottom-0 w-1 opacity-0 group-hover:opacity-100 transition-opacity ${statusColor === 'red' ? 'bg-red-500' : statusColor === 'amber' ? 'bg-amber-400' : 'bg-emerald-500'}`}></div>
+                        <div className="flex items-center space-x-4">
+                          <div className={`w-10 h-10 rounded-lg bg-${statusColor}-500/10 text-${statusColor}-400 flex items-center justify-center shrink-0 border border-${statusColor}-500/20 group-hover:scale-110 transition-transform`}>
+                            <Icons.Calendar size={18} />
+                          </div>
+                          <div>
+                            <h4 className={`text-white font-medium truncate max-w-[150px] sm:max-w-[250px] transition-colors group-hover:text-${statusColor}-400`}>{doc.title}</h4>
+                            <div className="flex items-center text-xs text-slate-500 mt-1">
+                              <span>Expires: {formatDate(doc.expiry_date)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className={`text-xs ml-4 shrink-0 font-bold px-2.5 py-1 rounded-md border ${statusColor === 'red' ? 'bg-red-500/10 text-red-500 border-red-500/20' : statusColor === 'amber' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
+                          {statusLabel}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </GlassCard>
+          </div>
         </div>
       </motion.div>
     );
