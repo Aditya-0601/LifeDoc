@@ -1,5 +1,5 @@
 (function () {
-  const { GlassCard, Button, Icons } = window;
+  const { GlassCard, Button, Icons, useToast } = window;
   const { motion } = window.Motion;
   const { Link } = window.Router;
 
@@ -7,6 +7,7 @@
   const api = window.api;
 
   const AdminDashboard = () => {
+    const { showSuccess, showError } = useToast();
     const [users, setUsers] = useState([]);
     const [documents, setDocuments] = useState([]);
     const [stats, setStats] = useState({ totalUsers: 0, totalDocuments: 0, totalSize: 0, expiringDocuments: 0 });
@@ -39,7 +40,8 @@
       try {
         await api.put(endpoint);
         fetchData();
-      } catch (e) { alert('Failed to toggle user status'); }
+        showSuccess('User status updated');
+      } catch (e) { showError('Failed to toggle user status'); }
     };
 
     const handleDeleteDoc = async (id) => {
@@ -47,7 +49,8 @@
         try {
           await api.delete(`/admin/documents/${id}`);
           fetchData();
-        } catch (e) { alert('Failed to delete document'); }
+          showSuccess('Document deleted');
+        } catch (e) { showError('Failed to delete document'); }
       }
     };
 

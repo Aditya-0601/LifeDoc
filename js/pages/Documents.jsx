@@ -1,11 +1,12 @@
 (function () {
-  const { GlassCard, Button, Icons } = window;
+  const { GlassCard, Button, Icons, useToast } = window;
   const { motion, AnimatePresence } = window.Motion;
   const { useState, useEffect } = window.React;
   const { Link } = window.Router;
   const api = window.api;
 
   const Documents = () => {
+    const { showSuccess, showError } = useToast();
     const [docs, setDocs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
@@ -56,8 +57,9 @@
         try {
           await api.delete(`/documents/${id}`);
           fetchDocuments(); // refresh list
+          showSuccess('Document deleted successfully');
         } catch (err) {
-          alert('Failed to delete document');
+          showError('Failed to delete document');
         }
       }
     };

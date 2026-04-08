@@ -1,5 +1,5 @@
 (function () {
-  const { GlassCard, Button, Icons, useAuth } = window;
+  const { GlassCard, Button, Icons, useAuth, useToast } = window;
   const { motion } = window.Motion;
   const { useState, useEffect } = window.React;
   const { useNavigate } = window.Router;
@@ -7,6 +7,7 @@
 
   const Profile = () => {
     const { user, logout } = useAuth();
+    const { showSuccess, showError } = useToast();
     const navigate = useNavigate();
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -38,19 +39,19 @@
       // Mock update for now
       setProfile({ ...profile, ...editForm });
       setIsEditing(false);
-      alert('Profile updated successfully (UI Mock)');
+      showSuccess('Profile updated successfully (UI Mock)');
     };
 
     const handleChangePassword = (e) => {
       e.preventDefault();
       if (passwordForm.new !== passwordForm.confirm) {
-        alert("Passwords do not match");
+        showError("Passwords do not match");
         return;
       }
       // Mock password change
       setIsChangingPassword(false);
       setPasswordForm({ current: '', new: '', confirm: '' });
-      alert('Password changed successfully (UI Mock)');
+      showSuccess('Password changed successfully (UI Mock)');
     };
 
     const handleLogout = () => {

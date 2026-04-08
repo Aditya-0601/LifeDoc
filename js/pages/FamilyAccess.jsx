@@ -1,5 +1,5 @@
 (function () {
-  const { GlassCard, Button, Icons } = window;
+  const { GlassCard, Button, Icons, useToast } = window;
   const { motion } = window.Motion;
   const { useState, useEffect } = window.React;
   const api = window.api;
@@ -8,6 +8,7 @@
     const [members, setMembers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
+    const { showSuccess, showError } = useToast();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
 
@@ -35,8 +36,9 @@
         setName('');
         setEmail('');
         fetchMembers();
+        showSuccess('Invite sent successfully');
       } catch (err) {
-        alert(err.response?.data?.error || 'Failed to add member');
+        showError(err.response?.data?.error || 'Failed to add member');
       }
     };
 
@@ -45,8 +47,9 @@
         try {
           await api.delete(`/family-access/${id}`);
           fetchMembers();
+          showSuccess('Access revoked');
         } catch (err) {
-          alert('Failed to revoke access');
+          showError('Failed to revoke access');
         }
       }
     };

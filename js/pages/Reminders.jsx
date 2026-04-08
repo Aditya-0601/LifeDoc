@@ -1,10 +1,11 @@
 (function() {
-  const { GlassCard, Icons, Button } = window;
+  const { GlassCard, Icons, Button, useToast } = window;
   const { motion, AnimatePresence } = window.Motion;
   const { useState, useEffect } = window.React;
   const api = window.api;
 
   const Reminders = () => {
+    const { showSuccess, showError } = useToast();
     const [reminders, setReminders] = useState([]);
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -44,15 +45,17 @@
         setShowModal(false);
         setFormData({ title: '', deadline_date: '', type: 'Renewal', notes: '' });
         fetchReminders();
-      } catch(err) { alert('Failed to add reminder'); }
+        showSuccess('Reminder added successfully');
+      } catch(err) { showError('Failed to add reminder'); }
     };
 
     const handleDismiss = async (id, source) => {
-      if (source !== 'manual') return alert('Only explicit manual reminders can be dismissed early.');
+      if (source !== 'manual') return showError('Only explicit manual reminders can be dismissed early.');
       try {
         await api.put(`/reminders/${id}/dismiss`);
         fetchReminders();
-      } catch(err) { alert('Failed to dismiss'); }
+        showSuccess('Reminder dismissed');
+      } catch(err) { showError('Failed to dismiss'); }
     };
 
     const groupReminders = () => {

@@ -1,13 +1,14 @@
 (function () {
   const { HashRouter, Routes, Route, Navigate } = window.Router;
   const {
-    Landing, Login, Register, DashboardLayout, DashboardIndex, Documents, UploadDocument, Reminders, FamilyAccess, Notifications, AdminDashboard, Profile, AuthProvider, ProtectedRoute
+    Landing, Login, Register, DashboardLayout, DashboardIndex, Documents, UploadDocument, Reminders, FamilyAccess, Notifications, AdminDashboard, Profile, AuthProvider, ProtectedRoute, ToastProvider
   } = window;
 
   const App = () => {
     return (
-      <AuthProvider>
-        <HashRouter>
+      <ToastProvider>
+        <AuthProvider>
+          <HashRouter>
           <Routes>
             {/* Marketing & Auth */}
             <Route path="/" element={<Landing />} />
@@ -41,6 +42,7 @@
           </Routes>
         </HashRouter>
       </AuthProvider>
+      </ToastProvider>
     );
   };
 
