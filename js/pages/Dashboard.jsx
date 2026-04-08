@@ -1,5 +1,5 @@
 (function () {
-  const { Sidebar, Icons, GlassCard, useAuth } = window;
+  const { Sidebar, Icons, GlassCard, Button, useAuth } = window;
   const { Outlet, Link } = window.Router;
   const { motion } = window.Motion;
   const { useState, useEffect } = window.React;
@@ -47,8 +47,8 @@
             usedBytes: totalBytes
           });
 
-          // Get top 3 recent uploads
-          setRecentUploads(docs.slice(0, 3));
+          // Get top 5 recent uploads
+          setRecentUploads(docs.slice(0, 5));
         } catch (error) {
           console.error("Failed to load dashboard data:", error);
         } finally {
@@ -143,23 +143,53 @@
 
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-display font-bold text-white">Recent Uploads</h2>
+            <h2 className="text-lg font-display font-bold text-white">Recent Activity</h2>
             <button onClick={() => window.location.hash = "#/dashboard/documents"} className="text-sm text-cyan-400 hover:text-cyan-300">View All →</button>
           </div>
           
-          <GlassCard className="p-0 overflow-hidden text-sm">
+          <GlassCard className="p-0 overflow-hidden">
             {recentUploads.length === 0 ? (
-              <div className="p-6 text-center text-slate-400">No documents uploaded yet.</div>
-            ) : (
-              recentUploads.map((doc, i) => (
-                <div key={doc.id} className="flex items-center justify-between p-4 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
-                  <div className="flex items-center space-x-3 text-slate-300">
-                    <span className="text-slate-500"><Icons.FileText size={16} /></span>
-                    <span className="truncate max-w-[200px] sm:max-w-md">{doc.title}</span>
-                  </div>
-                  <span className="text-slate-500 text-xs">{formatDate(doc.created_at)}</span>
+              <div className="p-12 flex flex-col items-center justify-center text-center border-dashed border-2 border-white/5 m-4 rounded-xl relative overflow-hidden group">
+                <div className="absolute inset-0 bg-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <div className="w-16 h-16 bg-navy-900 rounded-full flex items-center justify-center mb-4 border border-white/10 shadow-[0_0_15px_rgba(6,182,212,0.1)]">
+                  <Icons.Activity size={24} className="text-slate-400" />
                 </div>
-              ))
+                <h3 className="text-white font-semibold mb-2">No recent activity yet</h3>
+                <p className="text-slate-400 text-sm max-w-sm mb-6">Your vault is currently empty. Upload your first document to start tracking its security status.</p>
+                <Link to="/dashboard/upload">
+                  <Button variant="primary" className="shadow-[0_0_20px_rgba(6,182,212,0.2)]">Upload Document</Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="divide-y divide-white/5">
+                {recentUploads.map((doc, i) => (
+                  <motion.div 
+                    initial={{ opacity: 0, x: -10 }} 
+                    animate={{ opacity: 1, x: 0 }} 
+                    transition={{ delay: i * 0.05 }}
+                    key={doc.id} 
+                    className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 px-6 hover:bg-white/[0.02] transition-colors duration-300 relative overflow-hidden"
+                  >
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <div className="flex items-center space-x-4">
+                      <div className="w-10 h-10 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center shrink-0 border border-cyan-500/20 group-hover:scale-110 transition-transform">
+                        <Icons.FileText size={18} />
+                      </div>
+                      <div>
+                        <h4 className="text-white font-medium truncate max-w-[200px] sm:max-w-md group-hover:text-cyan-400 transition-colors">{doc.title}</h4>
+                        <div className="flex items-center text-xs text-slate-500 mt-1">
+                          <span className="bg-white/5 px-2 py-0.5 rounded text-slate-400 font-medium mr-2">Uploaded</span>
+                          <span className="capitalize">{doc.category || 'Other'} Document</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2 text-slate-500 text-xs mt-3 sm:mt-0 ml-14 sm:ml-0 font-medium bg-navy-900/50 px-3 py-1.5 rounded-lg border border-white/5">
+                      <Icons.Clock size={12} className="text-indigo-400" />
+                      <span>{formatDate(doc.created_at)}</span>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
             )}
           </GlassCard>
         </div>
