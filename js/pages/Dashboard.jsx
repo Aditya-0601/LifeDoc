@@ -147,8 +147,10 @@
           </GlassCard>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div>
+        <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-2"></div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
+          <div className="flex flex-col h-full">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-display font-bold text-white">Recent Activity</h2>
             <button onClick={() => window.location.hash = "#/dashboard/documents"} className="text-sm text-cyan-400 hover:text-cyan-300">View All →</button>
@@ -201,7 +203,7 @@
           </GlassCard>
           </div>
 
-          <div>
+          <div className="flex flex-col h-full">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-display font-bold text-white">Upcoming Expiry</h2>
               <button onClick={() => window.location.hash = "#/dashboard/reminders"} className="text-sm text-cyan-400 hover:text-cyan-300">View All →</button>
