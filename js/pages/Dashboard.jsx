@@ -110,6 +110,19 @@
           </div>
         </header>
 
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Link to="/dashboard/upload" className="flex-1">
+             <Button variant="primary" className="w-full flex justify-center items-center h-12 shadow-[0_0_15px_rgba(6,182,212,0.2)] hover:shadow-[0_0_25px_rgba(6,182,212,0.4)]">
+                <Icons.Plus size={18} className="mr-2" /> Upload Document
+             </Button>
+          </Link>
+          <Link to="/dashboard/reminders" className="flex-1">
+             <Button variant="secondary" className="w-full flex justify-center items-center h-12 border-cyan-500/20 hover:border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-400 transition-all">
+                <Icons.Calendar size={18} className="mr-2" /> Add Reminder
+             </Button>
+          </Link>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <GlassCard className="flex flex-col">
             <div className="flex justify-between items-center mb-4">
@@ -217,7 +230,10 @@
                     <Icons.Shield size={24} className="text-emerald-400" />
                   </div>
                   <h3 className="text-white font-semibold mb-2">No upcoming expiries</h3>
-                  <p className="text-slate-400 text-sm max-w-sm">All your tracked documents are currently safe. Upload documents with expiry dates to track them here.</p>
+                  <p className="text-slate-400 text-sm max-w-sm mb-6">All your tracked documents are currently safe. Upload documents with expiry dates to track them here.</p>
+                  <Link to="/dashboard/reminders">
+                    <Button variant="secondary">Add Manual Reminder</Button>
+                  </Link>
                 </div>
               ) : (
                 <div className="divide-y divide-white/5">
