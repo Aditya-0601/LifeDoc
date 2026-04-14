@@ -12,8 +12,10 @@
 
   const FamilyAccess = () => {
     const [members, setMembers] = useState([]);
+    const [invitations, setInvitations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
+    const [activeTab, setActiveTab] = useState('members');
     const { showSuccess, showError } = useToast();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -21,8 +23,12 @@
     const fetchMembers = async () => {
       try {
         setLoading(true);
-        const res = await api.get('/family-access');
-        setMembers(res.data.accesses || []);
+        const [memRes, invRes] = await Promise.all([
+          api.get('/family-access'),
+          api.get('/family-access/invitations')
+        ]);
+        setMembers(memRes.data.accesses || []);
+        setInvitations(invRes.data.invitations || []);
       } catch (err) {
         console.error("Failed to fetch family members:", err);
       } finally {
@@ -60,6 +66,23 @@
       }
     };
 
+    const handleAcceptInvite = async (id) => {
+      try {
+        await api.patch(`/family-access/invitations/${id}/accept`);
+        fetchMembers();
+        showSuccess('Invitation accepted');
+      } catch (err) { showError('Failed to accept'); }
+    };
+
+    const handleRejectInvite = async (id) => {
+      try {
+        await api.patch(`/family-access/invitations/${id}/reject`);
+        fetchMembers();
+        showSuccess('Invitation rejected');
+      } catch (err) { showError('Failed to reject'); }
+    };
+
+    // Keep handleApprove/Reject for legacy sender-side approvals if needed
     const handleApprove = async (id) => {
       try {
         await api.put(`/family-access/${id}/approve`);
@@ -83,6 +106,24 @@
           <div>
             <h1 className="text-3xl font-display font-bold text-white tracking-tight">Family Access</h1>
             <p className="text-slate-400 mt-1">Manage trusted individuals who can access documents in an emergency.</p>
+            
+            <div className="flex space-x-2 mt-6">
+              <button 
+                onClick={() => setActiveTab('members')} 
+                className={`text-sm font-medium px-4 py-2 rounded-lg transition-all ${activeTab === 'members' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'text-slate-400 hover:bg-white/5 border border-transparent'}`}
+              >
+                My Trusted Members
+              </button>
+              <button 
+                onClick={() => setActiveTab('invitations')} 
+                className={`text-sm font-medium px-4 py-2 rounded-lg transition-all flex items-center ${activeTab === 'invitations' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'text-slate-400 hover:bg-white/5 border border-transparent'}`}
+              >
+                Pending Invitations
+                {invitations.length > 0 && (
+                  <span className="ml-2 bg-indigo-500 text-white text-xs px-2 py-0.5 rounded-full">{invitations.length}</span>
+                )}
+              </button>
+            </div>
           </div>
           <Button variant="primary" onClick={() => setShowForm(!showForm)}>
             {showForm ? 'Cancel' : 'Add Member'}
@@ -121,48 +162,78 @@
         )}
 
         {loading ? (
-          <div className="text-slate-400">Loading access list...</div>
-        ) : members.length === 0 ? (
-          <div className="text-slate-400">No family members have been added yet.</div>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {members.map((member) => (
-              <GlassCard key={member.id} className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-cyan-500 to-indigo-500 flex items-center justify-center text-lg font-bold text-white shadow-lg">
-                    {member.family_member_name.charAt(0).toUpperCase()}
+          <div className="text-slate-400 mt-8">Loading access list...</div>
+        ) : activeTab === 'members' ? (
+          members.length === 0 ? (
+            <div className="mt-8 text-center py-16 border border-dashed border-white/5 rounded-2xl bg-white/[0.02]">
+              <p className="text-slate-500">No family members have been added yet.</p>
+            </div>
+          ) : (
+            <div className="mt-8 grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {members.map((member) => (
+                <GlassCard key={member.id} className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-cyan-500 to-indigo-500 flex items-center justify-center text-lg font-bold text-white shadow-lg">
+                      {member.family_member_name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className={`text-xs px-2 py-1 rounded-md font-medium border ${
+                      member.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+                      member.status === 'rejected' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 
+                      'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                    }`}>
+                      {member.status === 'approved' ? 'Accepted' : member.status === 'rejected' ? 'Rejected' : 'Pending Invite'}
+                    </div>
                   </div>
-                  <div className={`text-xs px-2 py-1 rounded-md font-medium border ${
-                    member.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
-                    member.status === 'rejected' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 
-                    'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                  }`}>
-                    {member.status === 'approved' ? 'Approved' : member.status === 'rejected' ? 'Rejected' : 'Request Pending'}
+                  <h3 className="text-xl font-semibold text-white">{member.family_member_name}</h3>
+                  <p className="text-sm text-cyan-400 mb-4">{member.family_member_email}</p>
+                  <div className="text-xs text-slate-500 font-mono bg-navy-900 p-2 rounded mb-4 text-center select-all">
+                     Code: {member.access_code}
                   </div>
-                </div>
-                <h3 className="text-xl font-semibold text-white">{member.family_member_name}</h3>
-                <p className="text-sm text-cyan-400 mb-4">{member.family_member_email}</p>
-                <div className="text-xs text-slate-500 font-mono bg-navy-900 p-2 rounded mb-4 text-center select-all">
-                   Code: {member.access_code}
-                </div>
 
-                <div className="flex justify-between items-center pt-4 border-t border-white/5">
-                  <div className="text-sm text-slate-400 font-medium">
-                    {member.status === 'pending' ? (
-                      <div className="flex space-x-2">
-                        <button onClick={() => handleApprove(member.id)} className="text-xs px-3 py-1.5 bg-emerald-500/20 text-emerald-400 rounded hover:bg-emerald-500/30 transition-colors">Approve</button>
-                        <button onClick={() => handleReject(member.id)} className="text-xs px-3 py-1.5 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors">Reject</button>
-                      </div>
-                    ) : (
-                      member.status === 'approved' ? 'Emergency Contact' : 'Access Denied'
-                    )}
+                  <div className="flex justify-between items-center pt-4 border-t border-white/5">
+                    <div className="text-sm text-slate-400 font-medium">
+                      {member.status === 'approved' ? 'Emergency Contact' : member.status === 'rejected' ? 'Invited Denied' : 'Awaiting Response'}
+                    </div>
+                    <button onClick={() => handleRevoke(member.id)} className="text-slate-500 hover:text-red-400 transition-colors" title="Revoke Access">
+                      <Icons.Trash size={18} />
+                    </button>
                   </div>
-                  <button onClick={() => handleRevoke(member.id)} className="text-slate-500 hover:text-red-400 transition-colors" title="Revoke Access">
-                    <Icons.Trash size={18} />
-                  </button>
-                </div>
-              </GlassCard>
-            ))}
+                </GlassCard>
+              ))}
+            </div>
+          )
+        ) : (
+          <div className="mt-8">
+            {invitations.length === 0 ? (
+              <div className="text-center py-16 border border-dashed border-white/5 rounded-2xl bg-white/[0.02]">
+                <p className="text-slate-500">You have no pending invitations.</p>
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {invitations.map((invite) => (
+                  <GlassCard key={invite.id} className="p-6 border-indigo-500/30">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-lg font-bold text-white shadow-lg">
+                        {invite.sender_name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="text-xs px-2 py-1 rounded-md font-medium border bg-indigo-500/10 text-indigo-400 border-indigo-500/20">
+                        Incoming Invite
+                      </div>
+                    </div>
+                    <h3 className="text-xl font-semibold text-white">{invite.sender_name}</h3>
+                    <p className="text-sm text-slate-400 mb-4">{invite.sender_email}</p>
+                    <p className="text-xs text-slate-500 mb-6 bg-navy-900 border border-white/5 p-3 rounded-lg">
+                      They trust you to be their emergency contact. Do you accept this requested access?
+                    </p>
+
+                    <div className="flex space-x-3 pt-4 border-t border-white/5">
+                      <Button onClick={() => handleAcceptInvite(invite.id)} className="flex-1 text-sm bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 py-2 font-bold">Accept</Button>
+                      <Button onClick={() => handleRejectInvite(invite.id)} className="flex-1 text-sm bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 py-2 font-bold">Reject</Button>
+                    </div>
+                  </GlassCard>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </motion.div>

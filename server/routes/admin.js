@@ -33,6 +33,23 @@ router.put('/users/:id/enable', authenticate, async (req, res) => {
   }
 });
 
+router.delete('/users/:id', authenticate, async (req, res) => {
+  try {
+    const pool = getDb();
+    
+    // Deleting the user should cascade delete documents and deadlines because
+    // of `ON DELETE CASCADE` in our init schema for `documents`, `deadlines`, etc.
+    const { rowCount } = await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+    
+    if (rowCount === 0) return res.status(404).json({ error: 'User not found' });
+    
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Delete User Error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/documents', authenticate, async (req, res) => {
   try {
     const pool = getDb();
@@ -51,8 +68,12 @@ router.get('/documents', authenticate, async (req, res) => {
 router.delete('/documents/:id', authenticate, async (req, res) => {
   try {
     const pool = getDb();
+    
+    // We should log this as an admin deletion if we tracked admin actions, 
+    // but the query is sufficient for normal functionality.
     const { rowCount } = await pool.query('DELETE FROM documents WHERE id = $1', [req.params.id]);
     if (rowCount === 0) return res.status(404).json({ error: 'Document not found' });
+    
     res.json({ message: 'Document deleted' });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });

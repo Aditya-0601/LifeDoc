@@ -50,6 +50,16 @@
       } catch (e) { showError('Failed to toggle user status'); }
     };
 
+    const handleDeleteUser = async (id) => {
+      if (confirm('WARNING: Are you sure you want to PERMANENTLY delete this user and ALL their documents? This action cannot be undone.')) {
+        try {
+          await api.delete(`/admin/users/${id}`);
+          fetchData();
+          showSuccess('User completely deleted');
+        } catch (e) { showError('Failed to delete user'); }
+      }
+    };
+
     const handleDeleteDoc = async (id) => {
       if (confirm('Are you sure you want to permanently delete this document?')) {
         try {
@@ -128,7 +138,7 @@
                           {u.is_active ? 'Active' : 'Disabled'}
                         </span>
                       </td>
-                      <td className="p-4">
+                      <td className="p-4 flex space-x-2">
                         <Button 
                           variant={u.is_active ? "danger" : "primary"} 
                           size="sm" 
@@ -137,6 +147,13 @@
                         >
                           {u.is_active ? 'Disable' : 'Enable'}
                         </Button>
+                        <button 
+                          onClick={() => handleDeleteUser(u.id)} 
+                          className="text-slate-500 hover:text-red-400 transition-colors p-1 bg-white/5 hover:bg-white/10 rounded" 
+                          title="Delete User"
+                        >
+                          <Icons.Trash size={16} />
+                        </button>
                       </td>
                     </tr>
                   ))}

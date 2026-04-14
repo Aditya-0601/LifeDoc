@@ -22,16 +22,24 @@ router.post('/request', authenticate, async (req, res) => {
       [req.userId, family_member_email, family_member_name, access_code]
     );
 
-    await pool.query(
-      `INSERT INTO notifications (user_id, title, description, type)
-       VALUES ($1, $2, $3, $4)`,
-      [
-        req.userId,
-        'Family Member Access Granted',
-        `${family_member_name} (${family_member_email}) was granted access via code ${access_code}.`,
-        'family'
-      ]
-    );
+    // Get current user's name
+    const userRes = await pool.query('SELECT name FROM users WHERE id = $1', [req.userId]);
+    const senderName = userRes.rows[0]?.name || 'Someone';
+
+    // Notify the receiver if they have an active account
+    const recRes = await pool.query('SELECT id FROM users WHERE email = $1', [family_member_email]);
+    if (recRes.rows.length > 0) {
+      await pool.query(
+        `INSERT INTO notifications (user_id, title, description, type)
+         VALUES ($1, $2, $3, $4)`,
+        [
+          recRes.rows[0].id,
+          'New Trusted Contact Invitation',
+          `${senderName} invited you to be their emergency contact.`,
+          'family'
+        ]
+      );
+    }
 
     res.status(201).json({
       message: 'Family access created successfully',
@@ -61,6 +69,24 @@ router.get('/', authenticate, async (req, res) => {
     res.json({ accesses: rows });
   } catch (error) {
     console.error('Fetch Family Access Error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get invitations sent TO the logged-in user
+router.get('/invitations', authenticate, async (req, res) => {
+  try {
+    const pool = getDb();
+    const { rows } = await pool.query(
+      `SELECT f.id, f.status, f.created_at, u.name as sender_name, u.email as sender_email
+       FROM family_access f
+       JOIN users u ON f.user_id = u.id
+       WHERE f.family_member_email = $1 AND f.status = 'pending'`,
+      [req.userEmail]
+    );
+    res.json({ invitations: rows });
+  } catch (error) {
+    console.error('Fetch Invitations Error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -146,6 +172,65 @@ router.get('/emergency/:access_code', async (req, res) => {
     });
   } catch (error) {
     console.error('Emergency Access Error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ----------------------------------------------------
+// NEW: Receiver-based Accept/Reject
+// ----------------------------------------------------
+
+router.patch('/invitations/:id/accept', authenticate, async (req, res) => {
+  try {
+    const pool = getDb();
+    
+    // Verify invitation belongs to to this receiver
+    const { rows } = await pool.query(
+      'SELECT user_id, family_member_name FROM family_access WHERE id = $1 AND family_member_email = $2', 
+      [req.params.id, req.userEmail]
+    );
+    
+    if (rows.length === 0) return res.status(404).json({ error: 'Invitation not found' });
+    
+    await pool.query("UPDATE family_access SET status = 'approved' WHERE id = $1", [req.params.id]);
+    
+    // Notify Sender
+    const senderId = rows[0].user_id;
+    await pool.query(
+      `INSERT INTO notifications (user_id, title, description, type) VALUES ($1, $2, $3, $4)`,
+      [senderId, 'Invitation Accepted', `${req.userEmail} has accepted your emergency access invitation.`, 'family']
+    );
+
+    res.json({ message: 'Invitation accepted' });
+  } catch (error) {
+    console.error('Accept Invitation Error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.patch('/invitations/:id/reject', authenticate, async (req, res) => {
+  try {
+    const pool = getDb();
+    
+    const { rows } = await pool.query(
+      'SELECT user_id FROM family_access WHERE id = $1 AND family_member_email = $2', 
+      [req.params.id, req.userEmail]
+    );
+    
+    if (rows.length === 0) return res.status(404).json({ error: 'Invitation not found' });
+    
+    await pool.query("UPDATE family_access SET status = 'rejected' WHERE id = $1", [req.params.id]);
+    
+    // Optional: Notify sender of rejection
+    const senderId = rows[0].user_id;
+    await pool.query(
+      `INSERT INTO notifications (user_id, title, description, type) VALUES ($1, $2, $3, $4)`,
+      [senderId, 'Invitation Rejected', `${req.userEmail} has rejected your emergency access invitation.`, 'family']
+    );
+    
+    res.json({ message: 'Invitation rejected' });
+  } catch (error) {
+    console.error('Reject Invitation Error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
