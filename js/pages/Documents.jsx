@@ -25,6 +25,12 @@
     // Deletion Modal State
     const [confirmDeleteDocId, setConfirmDeleteDocId] = useState(null);
 
+    // Share Modal State
+    const [shareModalDoc, setShareModalDoc] = useState(null);
+    const [shareExpiry, setShareExpiry] = useState("never");
+    const [generatedLink, setGeneratedLink] = useState("");
+    const [generatingLink, setGeneratingLink] = useState(false);
+
     useEffect(() => {
       setImgError(false);
     }, [selectedDocument]);
@@ -138,6 +144,39 @@
       setSelectedDocument(doc);
       setIsPreviewOpen(true);
       setImgError(false);
+    };
+
+    const handleShareClick = (doc, e) => {
+      e.stopPropagation();
+      setShareModalDoc(doc);
+      setGeneratedLink("");
+      setShareExpiry("never");
+    };
+
+    const generateShareLink = async () => {
+      if (!shareModalDoc) return;
+      try {
+        setGeneratingLink(true);
+        let days = null;
+        if (shareExpiry === "1") days = 1;
+        if (shareExpiry === "7") days = 7;
+        if (shareExpiry === "30") days = 30;
+
+        const res = await api.post(`/documents/${shareModalDoc.id}/share`, { expires_in_days: days });
+        setGeneratedLink(res.data.shareUrl);
+        showSuccess("Public share link generated!");
+      } catch (err) {
+        showError("Failed to generate share link.");
+        console.error(err);
+      } finally {
+        setGeneratingLink(false);
+      }
+    };
+
+    const copyToClipboard = () => {
+      if (!generatedLink) return;
+      navigator.clipboard.writeText(generatedLink);
+      showSuccess("Link copied to clipboard!");
     };
 
     const handleDownload = (doc, e) => {
@@ -287,13 +326,22 @@
                     <Icons.Star size={16} className={doc.isFavorite ? "fill-amber-400" : ""} />
                   </div>
                   {!doc.isShared && (
-                    <div 
-                      className="hover:text-red-400 cursor-pointer p-1 bg-navy-900/50 rounded"
-                      onClick={(e) => handleDeleteClick(doc.id, e)}
-                      title="Delete Document"
-                    >
-                      <Icons.Trash size={16} />
-                    </div>
+                    <>
+                      <div 
+                        className="hover:text-indigo-400 cursor-pointer p-1 bg-navy-900/50 rounded transition-colors"
+                        onClick={(e) => handleShareClick(doc, e)}
+                        title="Share Document"
+                      >
+                        <Icons.Share size={16} />
+                      </div>
+                      <div 
+                        className="hover:text-red-400 cursor-pointer p-1 bg-navy-900/50 rounded transition-colors"
+                        onClick={(e) => handleDeleteClick(doc.id, e)}
+                        title="Delete Document"
+                      >
+                        <Icons.Trash size={16} />
+                      </div>
+                    </>
                   )}
                 </div>
                 
@@ -433,6 +481,79 @@
                      <Button variant="secondary" onClick={() => setConfirmDeleteDocId(null)}>Cancel</Button>
                      <Button variant="danger" onClick={confirmDelete} className="bg-red-500 hover:bg-red-600 text-white border-transparent">Delete</Button>
                    </div>
+                 </GlassCard>
+               </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+        
+        {/* Share Modal */}
+        <AnimatePresence>
+          {shareModalDoc && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-navy-900/90 backdrop-blur-sm" onClick={() => setShareModalDoc(null)} />
+               <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative z-10 w-full max-w-md">
+                 <GlassCard className="p-6 border-indigo-500/30 shadow-[0_0_30px_rgba(99,102,241,0.15)]">
+                   <div className="flex justify-between items-center mb-6">
+                     <h3 className="text-xl font-bold text-white flex items-center"><Icons.Share className="text-indigo-400 mr-3" size={20}/> Share Document</h3>
+                     <button onClick={() => setShareModalDoc(null)} className="text-slate-500 hover:text-white transition-colors">
+                       <Icons.Plus className="rotate-45" size={20} />
+                     </button>
+                   </div>
+                   
+                   <p className="text-slate-400 text-sm mb-4">Generate a secure public download link for <strong>{shareModalDoc.name}</strong>.</p>
+                   
+                   {!generatedLink ? (
+                     <div className="space-y-4">
+                       <div>
+                         <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">Link Expiry</label>
+                         <select 
+                           value={shareExpiry}
+                           onChange={(e) => setShareExpiry(e.target.value)}
+                           className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500/50"
+                         >
+                           <option value="never">Never Expire</option>
+                           <option value="1">Expire in 24 Hours</option>
+                           <option value="7">Expire in 7 Days</option>
+                           <option value="30">Expire in 30 Days</option>
+                         </select>
+                       </div>
+                       
+                       <Button 
+                         variant="primary" 
+                         onClick={generateShareLink} 
+                         disabled={generatingLink}
+                         className="w-full h-11 flex justify-center items-center bg-indigo-500 hover:bg-indigo-600 text-white shadow-[0_0_15px_rgba(99,102,241,0.3)] transition-all disabled:opacity-50"
+                       >
+                         {generatingLink ? <span className="animate-pulse">Generating...</span> : "Generate Secure Link"}
+                       </Button>
+                     </div>
+                   ) : (
+                     <div className="space-y-4 animate-in fade-in zoom-in duration-300">
+                       <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                         <div className="flex items-center text-emerald-400 mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                            <span className="font-semibold text-sm">Link Generated successfully</span>
+                         </div>
+                         <div className="flex flex-col space-y-2">
+                           <input 
+                             readOnly 
+                             value={generatedLink} 
+                             className="w-full bg-navy-900/80 border border-white/10 rounded overflow-hidden text-xs text-slate-300 p-2 cursor-pointer font-mono"
+                             onClick={(e) => e.target.select()}
+                           />
+                           <div className="flex space-x-2">
+                             <Button onClick={copyToClipboard} className="flex-1 bg-white/10 hover:bg-white/20 text-white text-xs h-8 border-transparent transition-colors">
+                               Copy Link
+                             </Button>
+                             <Button onClick={() => setGeneratedLink("")} className="bg-white/5 hover:bg-white/10 text-slate-400 text-xs px-3 h-8 border-transparent">
+                               Reset
+                             </Button>
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+                   )}
                  </GlassCard>
                </motion.div>
             </div>

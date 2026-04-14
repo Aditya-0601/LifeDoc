@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const sharp = require('sharp');
 const Tesseract = require('tesseract.js');
 const pdfParse = require('pdf-parse');
@@ -439,6 +440,58 @@ router.delete('/:id', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Delete Document Error:', error);
     res.status(500).json({ error: 'Server error: ' + error.message });
+  }
+});
+
+// Share document via secure link
+router.post('/:id/share', authenticate, async (req, res) => {
+  try {
+    const pool = getDb();
+    const docId = parseInt(req.params.id);
+    const { expires_in_days } = req.body;
+    
+    if (isNaN(docId)) {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
+
+    // Verify ownership
+    const { rows } = await pool.query(
+      'SELECT id FROM documents WHERE id = $1 AND user_id = $2',
+      [docId, req.userId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found or access denied' });
+    }
+
+    // Generate secure token
+    const token = crypto.randomBytes(32).toString('hex');
+    
+    // Calculate expiry
+    let expiresAt = null;
+    if (expires_in_days && !isNaN(expires_in_days) && expires_in_days > 0) {
+       const d = new Date();
+       d.setDate(d.getDate() + parseInt(expires_in_days));
+       expiresAt = d;
+    }
+
+    // Insert into shared_links
+    await pool.query(
+      `INSERT INTO shared_links (document_id, token, expires_at)
+       VALUES ($1, $2, $3)`,
+      [docId, token, expiresAt]
+    );
+
+    const shareUrl = `${req.protocol}://${req.get('host')}/api/share/${token}`;
+    
+    res.status(201).json({ 
+      message: 'Secure share link generated', 
+      shareUrl,
+      expiresAt 
+    });
+  } catch (error) {
+    console.error('Share Document Error:', error);
+    res.status(500).json({ error: 'Server error generating link' });
   }
 });
 
