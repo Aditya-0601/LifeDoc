@@ -1,0 +1,18 @@
+# Environment variables
+.env
+.env.local
+
+# Dependency directories
+node_modules/
+
+# Database files
+*.db
+*.sqlite
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
