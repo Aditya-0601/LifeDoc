@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
 const Tesseract = require('tesseract.js');
-const pdfParse = require('pdf-parse');
+const { PDFParse } = require('pdf-parse');
 const { authenticate } = require('../middleware/auth');
 const { getDb } = require('../config/database');
 const router = express.Router();
@@ -61,6 +61,40 @@ const extractDateFromText = (text) => {
   const dateRegex = /\b(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})\b/;
   const match = text.match(dateRegex);
   return match ? match[0] : null;
+};
+
+const normalizeDateForDb = (dateString) => {
+  if (!dateString) return null;
+  const parts = dateString.split(/[\/\.-]/);
+  if (parts.length !== 3) return null;
+
+  let year;
+  let month;
+  let day;
+
+  // yyyy-mm-dd
+  if (parts[0].length === 4) {
+    [year, month, day] = parts;
+  } else {
+    // dd-mm-yyyy
+    [day, month, year] = parts;
+  }
+
+  if (year.length === 2) {
+    year = `20${year}`;
+  }
+
+  const y = Number(year);
+  const m = Number(month);
+  const d = Number(day);
+  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) {
+    return null;
+  }
+  if (m < 1 || m > 12 || d < 1 || d > 31) {
+    return null;
+  }
+
+  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 };
 
 // Upload document
@@ -124,7 +158,9 @@ router.post('/upload', authenticate, (req, res) => {
       try {
         console.log(`Running PDF parsing on uploaded document: ${req.file.originalname}...`);
         const dataBuffer = fs.readFileSync(req.file.path);
-        const data = await pdfParse(dataBuffer);
+        const parser = new PDFParse({ data: dataBuffer });
+        const data = await parser.getText();
+        await parser.destroy();
         detectedExpiryDate = extractDateFromText(data.text);
         if (detectedExpiryDate) {
           console.log(`✅ PDF parse detected potential date: ${detectedExpiryDate}`);
@@ -157,6 +193,11 @@ router.post('/upload', authenticate, (req, res) => {
 
       if (detectedExpiryDate) {
         try {
+          const normalizedDetectedDate = normalizeDateForDb(detectedExpiryDate);
+          if (!normalizedDetectedDate) {
+            throw new Error(`Could not normalize detected date: ${detectedExpiryDate}`);
+          }
+
           await pool.query(
             `INSERT INTO deadlines (user_id, document_id, title, description, deadline_date, reminder_days, category)
              VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -165,12 +206,12 @@ router.post('/upload', authenticate, (req, res) => {
               newDoc.id,
               `Renew: ${title || req.file.originalname}`,
               `Automatically created reminder for document expiry`,
-              detectedExpiryDate,
+              normalizedDetectedDate,
               30,
               category || 'other'
             ]
           );
-          console.log('✅ Automated reminder created for expiry date:', detectedExpiryDate);
+          console.log('✅ Automated reminder created for expiry date:', normalizedDetectedDate);
         } catch (dbErr) {
           console.error('Error automatically creating deadline:', dbErr);
         }
