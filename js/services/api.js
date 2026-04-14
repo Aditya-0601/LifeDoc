@@ -13,11 +13,6 @@
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
-      // Let Axios/browser set proper multipart boundary for FormData uploads.
-      if (config.data instanceof FormData && config.headers) {
-        delete config.headers['Content-Type'];
-        delete config.headers['content-type'];
-      }
       return config;
     },
     (error) => Promise.reject(error)

@@ -3,47 +3,15 @@
   const { motion } = window.Motion;
 
   const UploadDocument = () => {
-    const { useState, useRef, useEffect } = window.React;
-    const { useNavigate } = window.Router;
-    const navigate = useNavigate();
+    const { useState, useRef } = window.React;
     const [file, setFile] = useState(null);
     const [uploading, setUploading] = useState(false);
     const [message, setMessage] = useState('');
     const fileInputRef = useRef(null);
 
-    useEffect(() => {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setMessage('Please login first to upload documents.');
-      }
-    }, []);
-
     const handleFileChange = (e) => {
       if (e.target.files && e.target.files[0]) {
-        const selectedFile = e.target.files[0];
-        const allowedTypes = new Set([
-          'image/jpeg',
-          'image/png',
-          'application/pdf',
-          'application/msword',
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        ]);
-        const maxSize = 10 * 1024 * 1024;
-
-        if (!allowedTypes.has(selectedFile.type)) {
-          setFile(null);
-          setMessage('Only JPG, PNG, PDF, DOC, and DOCX files are allowed.');
-          return;
-        }
-
-        if (selectedFile.size > maxSize) {
-          setFile(null);
-          setMessage('File too large. Maximum allowed size is 10MB.');
-          return;
-        }
-
-        setMessage('');
-        setFile(selectedFile);
+        setFile(e.target.files[0]);
       }
     };
 
@@ -60,10 +28,6 @@
 
       try {
         const token = localStorage.getItem('token');
-        if (!token) {
-          throw new Error('Session expired. Please login again.');
-        }
-
         const response = await fetch('http://localhost:5000/api/documents/upload', {
           method: 'POST',
           headers: {
@@ -73,10 +37,8 @@
         });
 
         const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || data.message || 'Upload failed');
-        }
+        
+        if (!response.ok) throw new Error(data.message || 'Upload failed');
         
         setMessage('File uploaded successfully!');
         setFile(null);
@@ -122,27 +84,14 @@
           <h3 className="text-xl font-display font-semibold text-white mb-2">
             {file ? file.name : "Click to select your files here"}
           </h3>
-          <p className="text-slate-400 text-sm mb-6 max-w-xs text-center">Supports PDF, JPG, PNG, DOC, DOCX up to 10MB per file.</p>
+          <p className="text-slate-400 text-sm mb-6 max-w-xs text-center">Supports PDF, JPG, PNG, DOCX up to 50MB per file.</p>
           
           {file ? (
             <Button variant="primary" onClick={(e) => { e.stopPropagation(); handleUpload(); }} disabled={uploading}>
               {uploading ? 'Uploading...' : 'Confirm Upload'}
             </Button>
           ) : (
-             <Button
-               variant="secondary"
-               onClick={(e) => {
-                 e.stopPropagation();
-                 const token = localStorage.getItem('token');
-                 if (!token) {
-                   navigate('/login');
-                   return;
-                 }
-                 fileInputRef.current?.click();
-               }}
-             >
-               Browse Files
-             </Button>
+             <Button variant="secondary" className="pointer-events-none">Browse Files</Button>
           )}
         </GlassCard>
 

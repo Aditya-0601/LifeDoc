@@ -31,7 +31,7 @@
 
     const validateAndSetFile = (selectedFile) => {
       setError('');
-      const allowedTypes = [
+const allowedTypes = [
         'application/pdf',
         'image/jpeg',
         'image/png',
@@ -63,6 +63,7 @@
 
       try {
         await api.post('/documents/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
           onUploadProgress: (progressEvent) => {
             const total = progressEvent.total || 1;
             const percentCompleted = Math.round((progressEvent.loaded * 100) / total);
