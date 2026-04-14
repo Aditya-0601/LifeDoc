@@ -57,10 +57,43 @@
           // Get top 5 recent uploads
           setRecentUploads(docs.slice(0, 5));
 
-          // Filter and compute upcoming expiry dates from documents
-          const docsWithExpiry = docs.filter(d => d.expiry_date);
-          docsWithExpiry.sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
-          setUpcomingExpiries(docsWithExpiry.slice(0, 5));
+          // --- FIX: Normalize and Filter Upcoming Expiries (PART 1, 2, 3) ---
+          const today = new Date();
+          today.setHours(0, 0, 0, 0); // Normalize to start of day
+          
+          const next30Days = new Date();
+          next30Days.setDate(today.getDate() + 30);
+          next30Days.setHours(23, 59, 59, 999);
+
+          // 1. Combine data sources (Documents + Reminders/Deadlines)
+          const allExpiries = [
+            ...docs.filter(d => d.expiry_date).map(d => ({
+              id: `doc_${d.id}`,
+              title: d.name || d.title,
+              expiryDate: new Date(d.expiry_date),
+              source: 'document',
+              category: d.category
+            })),
+            ...deadlines.map(d => ({
+              id: `dl_${d.id}`,
+              title: d.title,
+              expiryDate: new Date(d.deadline_date),
+              source: 'reminder',
+              category: d.category
+            }))
+          ];
+
+          // 2. Filter expiries (expiryDate >= today AND within 30 days)
+          const filteredExpiries = allExpiries.filter(item => {
+            return item.expiryDate >= today && item.expiryDate <= next30Days;
+          });
+
+          // 3. Sort by date ascending
+          filteredExpiries.sort((a, b) => a.expiryDate - b.expiryDate);
+
+          console.log("DEBUG: Dashboard Unified Expiries:", filteredExpiries.length, filteredExpiries);
+          setUpcomingExpiries(filteredExpiries.slice(0, 5));
+          // --- END FIX ---
         } catch (error) {
           console.error("Failed to load dashboard data:", error);
         } finally {
@@ -247,14 +280,23 @@
                 </div>
               ) : (
                 <div className="divide-y divide-white/5">
-                  {upcomingExpiries.map((doc, i) => {
-                    const daysDiff = Math.ceil((new Date(doc.expiry_date) - new Date()) / (1000 * 60 * 60 * 24));
+                  {upcomingExpiries.map((item, i) => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    
+                    const diffTime = item.expiryDate - today;
+                    const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
                     let statusColor = 'emerald';
                     let statusLabel = 'Safe';
-                    if (daysDiff < 0) {
+                    
+                    if (daysLeft < 0) {
                       statusColor = 'red';
                       statusLabel = 'Expired';
-                    } else if (daysDiff <= 30) {
+                    } else if (daysLeft <= 7) {
+                      statusColor = 'red';
+                      statusLabel = 'Urgent';
+                    } else if (daysLeft <= 30) {
                       statusColor = 'amber';
                       statusLabel = 'Expiring Soon';
                     }
@@ -264,7 +306,7 @@
                         initial={{ opacity: 0, x: 10 }} 
                         animate={{ opacity: 1, x: 0 }} 
                         transition={{ delay: i * 0.05 }}
-                        key={'exp_'+doc.id} 
+                        key={item.id} 
                         className="group flex items-center justify-between p-4 px-6 hover:bg-white/[0.02] transition-colors duration-300 relative overflow-hidden"
                       >
                         <div className={`absolute left-0 top-0 bottom-0 w-1 opacity-0 group-hover:opacity-100 transition-opacity ${statusColor === 'red' ? 'bg-red-500' : statusColor === 'amber' ? 'bg-amber-400' : 'bg-emerald-500'}`}></div>
@@ -273,14 +315,15 @@
                             <Icons.Calendar size={18} />
                           </div>
                           <div>
-                            <h4 className={`text-white font-medium truncate max-w-[150px] sm:max-w-[250px] transition-colors group-hover:text-${statusColor}-400`}>{doc.title}</h4>
+                            <h4 className={`text-white font-medium truncate max-w-[150px] sm:max-w-[250px] transition-colors group-hover:text-${statusColor}-400`}>{item.title}</h4>
                             <div className="flex items-center text-xs text-slate-500 mt-1">
-                              <span>Expires: {formatDate(doc.expiry_date)}</span>
+                              <span>Expires: {formatDate(item.expiryDate.toISOString())}</span>
+                              <span className="ml-2 px-1.5 py-0.5 rounded bg-white/5 text-[10px] uppercase tracking-tighter">{item.source}</span>
                             </div>
                           </div>
                         </div>
                         <div className={`text-xs ml-4 shrink-0 font-bold px-2.5 py-1 rounded-md border ${statusColor === 'red' ? 'bg-red-500/10 text-red-500 border-red-500/20' : statusColor === 'amber' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
-                          {statusLabel}
+                          {daysLeft < 0 ? 'Expired' : `${daysLeft}d left`}
                         </div>
                       </motion.div>
                     );
