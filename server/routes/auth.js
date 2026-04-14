@@ -66,12 +66,12 @@ router.post('/login', async (req, res) => {
     const user = rows[0];
 
     if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Account not found for this email' });
     }
 
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Incorrect password' });
     }
 
     // Generate and save OTP
@@ -89,7 +89,8 @@ router.post('/login', async (req, res) => {
     res.json({
       message: 'OTP sent to email. Please verify to complete login.',
       requiresOTP: true,
-      email: user.email
+      email: user.email,
+      devOtp: !process.env.SMTP_HOST ? otp : undefined
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -130,13 +131,86 @@ router.post('/verify-otp', async (req, res) => {
     res.json({
       message: 'Login successful',
       token,
-      user: { id: user.id, email: user.email, name: user.name }
+      user: { id: user.id, email: user.email, name: user.name, created_at: user.created_at }
     });
   } catch (error) {
     console.error('OTP Verification error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
+// Forgot Password (Send OTP)
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const pool = getDb();
+    const { rows } = await pool.query('SELECT id, email FROM users WHERE email = $1', [email]);
+    const user = rows[0];
+
+    if (!user) {
+      return res.status(404).json({ error: 'Account not found for this email' });
+    }
+
+    const otp = generateOTP();
+    const otpExpiry = new Date(Date.now() + 10 * 60000); // 10 mins
+
+    await pool.query(
+      'UPDATE users SET otp = $1, otp_expiry = $2 WHERE id = $3',
+      [otp, otpExpiry, user.id]
+    );
+
+    await sendOTP(user.email, otp);
+
+    res.json({ 
+      message: 'If that email exists, an OTP has been sent.',
+      devOtp: !process.env.SMTP_HOST ? otp : undefined 
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Reset Password (Verify OTP and Update Password)
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ error: 'Email, OTP, and new password are required' });
+    }
+
+    const pool = getDb();
+    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = rows[0];
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid request' });
+    }
+
+    if (user.otp !== otp || new Date() > new Date(user.otp_expiry)) {
+      return res.status(401).json({ error: 'Invalid or expired OTP' });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password and clear OTP
+    await pool.query(
+      'UPDATE users SET password = $1, otp = NULL, otp_expiry = NULL WHERE id = $2',
+      [hashedPassword, user.id]
+    );
+
+    res.json({ message: 'Password has been reset successfully. You can now login.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 
 // Get current user
 router.get('/me', authenticate, async (req, res) => {

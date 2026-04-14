@@ -3,22 +3,26 @@
  * 
  * Handles user authentication. Provides a dual-step login interface 
  * (Email/Password -> OTP Verification) before redirecting to the Dashboard.
+ * Also handles Forgot Password flow.
  */
 (function () {
-  const { GlassCard, Button, Icons, useAuth } = window;
+  const { GlassCard, Button, Icons, useAuth, useToast } = window;
   const { Link, useNavigate, useLocation } = window.Router;
   const { motion } = window.Motion;
   const { useState } = window.React;
 
   const Login = () => {
-    const [email, setEmail] = useState('demo@lifedoc.com');
-    const [password, setPassword] = useState('password');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
     const [otp, setOtp] = useState('');
     const [step, setStep] = useState(1);
     const [error, setError] = useState(null);
+    const [successMessage, setSuccessMessage] = useState(null);
     const [loading, setLoading] = useState(false);
     
-    const { login, verifyOtp } = useAuth();
+    const { login, verifyOtp, requestPasswordReset, resetPassword } = useAuth();
+    const { showSuccess } = useToast();
     const navigate = useNavigate();
     const location = useLocation();
     
@@ -27,10 +31,14 @@
     const handleLogin = async (e) => {
       e.preventDefault();
       setError(null);
+      setSuccessMessage(null);
       setLoading(true);
       try {
-        await login(email, password);
+        const res = await login(email, password);
         setStep(2);
+        if (res.devOtp) {
+          setSuccessMessage(`DEV MODE - Your OTP is: ${res.devOtp}`);
+        }
       } catch (err) {
         setError(err.response?.data?.error || 'Login failed');
       } finally {
@@ -47,6 +55,46 @@
         navigate('/dashboard', { replace: true });
       } catch (err) {
         setError(err.response?.data?.error || 'OTP verification failed');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleForgotPasswordRequest = async (e) => {
+      e.preventDefault();
+      setError(null);
+      setSuccessMessage(null);
+      setLoading(true);
+      try {
+        const res = await requestPasswordReset(email);
+        
+        let msg = res.message;
+        if (res.devOtp) msg = `DEV MODE - Your Reset Code is: ${res.devOtp}`;
+        
+        setSuccessMessage(msg);
+        setStep(4);
+      } catch (err) {
+        setError(err.response?.data?.error || 'Failed to request reset');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleResetPassword = async (e) => {
+      e.preventDefault();
+      setError(null);
+      setLoading(true);
+      try {
+        const res = await resetPassword(email, otp, newPassword);
+        showSuccess(res.message);
+        // Switch back to login, clear fields except email
+        setStep(1);
+        setPassword('');
+        setOtp('');
+        setNewPassword('');
+        setSuccessMessage('Password reset successfully. Please log in.');
+      } catch (err) {
+        setError(err.response?.data?.error || 'Failed to reset password');
       } finally {
         setLoading(false);
       }
@@ -71,26 +119,35 @@
           <GlassCard className="p-8">
             <div className="text-center mb-8">
               <h1 className="text-2xl font-display font-bold text-white mb-2">
-                {step === 1 ? 'Welcome Back' : 'Verify Identity'}
+                {step === 1 ? 'Welcome Back' : step === 2 ? 'Verify Identity' : step === 3 ? 'Reset Password' : 'New Password'}
               </h1>
               <p className="text-slate-400 text-sm">
-                {step === 1 ? 'Sign in to access your secure vault' : 'Enter the OTP sent to your email'}
+                {step === 1 ? 'Sign in to access your secure vault' : 
+                 step === 2 ? 'Enter the OTP sent to your email' :
+                 step === 3 ? 'Enter your email to receive a reset code' :
+                 'Enter the OTP and your new master password'}
               </p>
             </div>
 
             {error && (
               <div className="mb-4 bg-red-500/10 border border-red-500/50 rounded-lg p-3 text-red-400 text-sm">
-                <div className="flex items-center mb-1">
-                  <Icons.AlertCircle size={14} className="mr-2" />
+                <div className="flex items-center">
+                  <Icons.AlertCircle size={14} className="mr-2 shrink-0" />
                   <strong>{error}</strong>
                 </div>
-                <p className="text-[11px] opacity-80 leading-tight mt-1">
-                  Note: If the system was recently reset, your old account may no longer exist. Try <Link to="/register" className="underline hover:text-white">registering a new one</Link>.
-                </p>
               </div>
             )}
 
-            {step === 1 ? (
+            {successMessage && !error && (
+              <div className="mb-4 bg-emerald-500/10 border border-emerald-500/50 rounded-lg p-3 text-emerald-400 text-sm">
+                <div className="flex items-center">
+                  <Icons.Check size={14} className="mr-2 shrink-0" />
+                  <strong>{successMessage}</strong>
+                </div>
+              </div>
+            )}
+
+            {step === 1 && (
               <form className="space-y-5" onSubmit={handleLogin}>
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Email address</label>
@@ -106,7 +163,7 @@
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <label className="block text-sm font-medium text-slate-300">Password</label>
-                    <a href="#" className="text-xs text-cyan-400 hover:text-cyan-300">Forgot password?</a>
+                    <button type="button" onClick={() => { setStep(3); setError(null); setSuccessMessage(null); }} className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors">Forgot password?</button>
                   </div>
                   <input
                     type="password"
@@ -121,7 +178,9 @@
                   {loading ? 'Authenticating...' : 'Unlock Vault'}
                 </Button>
               </form>
-            ) : (
+            )}
+
+            {step === 2 && (
               <form className="space-y-5" onSubmit={handleVerifyOtp}>
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">6-Digit OTP</label>
@@ -139,7 +198,68 @@
                   {loading ? 'Verifying...' : 'Complete Login'}
                 </Button>
                 <div className="text-center mt-4">
-                  <button type="button" onClick={() => setStep(1)} className="text-sm text-slate-400 hover:text-white">
+                  <button type="button" onClick={() => { setStep(1); setError(null); }} className="text-sm text-slate-400 hover:text-white transition-colors">
+                     ← Back to Login
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {step === 3 && (
+              <form className="space-y-5" onSubmit={handleForgotPasswordRequest}>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Email address</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
+                    placeholder="name@example.com"
+                    required
+                  />
+                </div>
+                <Button type="submit" variant="primary" className="w-full mt-4" disabled={loading}>
+                  {loading ? 'Sending...' : 'Send Reset Code'}
+                </Button>
+                <div className="text-center mt-4">
+                  <button type="button" onClick={() => { setStep(1); setError(null); }} className="text-sm text-slate-400 hover:text-white transition-colors">
+                     ← Back to Login
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {step === 4 && (
+              <form className="space-y-5" onSubmit={handleResetPassword}>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">6-Digit Reset Code (OTP)</label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 text-center tracking-widest text-lg transition-all"
+                    placeholder="000000"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">New Master Password</label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
+                    placeholder="••••••••"
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <Button type="submit" variant="primary" className="w-full mt-4" disabled={loading}>
+                  {loading ? 'Saving...' : 'Save New Password'}
+                </Button>
+                <div className="text-center mt-4">
+                  <button type="button" onClick={() => { setStep(1); setError(null); }} className="text-sm text-slate-400 hover:text-white transition-colors">
                      ← Back to Login
                   </button>
                 </div>
@@ -157,3 +277,4 @@
 
   window.Login = Login;
 })();
+

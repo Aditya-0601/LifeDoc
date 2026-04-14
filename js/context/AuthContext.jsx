@@ -59,6 +59,16 @@
       return res.data;
     };
 
+    const requestPasswordReset = async (email) => {
+      const res = await api.post('/auth/forgot-password', { email });
+      return res.data;
+    };
+
+    const resetPassword = async (email, otp, newPassword) => {
+      const res = await api.post('/auth/reset-password', { email, otp, newPassword });
+      return res.data;
+    };
+
     const logout = () => {
       localStorage.removeItem('token');
       setToken(null);
@@ -66,7 +76,7 @@
     };
 
     return (
-      <AuthContext.Provider value={{ user, token, loading, login, verifyOtp, register, logout }}>
+      <AuthContext.Provider value={{ user, token, loading, login, verifyOtp, register, logout, requestPasswordReset, resetPassword }}>
         {children}
       </AuthContext.Provider>
     );
