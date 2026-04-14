@@ -51,25 +51,34 @@ Before running this project, ensure you have the following installed on your mac
    
 2. **Environment Variables**
    - In the root of this project folder, create a new file named `.env`.
-   - Add the following variables to `.env` (adjusting the database URI to match your local setup):
+   - Copy the contents from `.env.example` and fill in your actual values:
 
    ```env
-   # Format: postgres://username:password@localhost:5432/database_name
-   DATABASE_URL=postgres://postgres:your_password@localhost:5432/lifedoc
-   
-   # Secret used for signing cryptographically secure JWTs
-   JWT_SECRET=super_secret_jwt_key_12345
-   
-   # API Port Configuration
-   PORT=5000
+   # Database Configuration
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_NAME=lifedoc
+   DB_USER=your_postgres_username
+   DB_PASSWORD=your_postgres_password
 
-   # SMTP Configuration for Emails & OTP (Optional)
-   # If not provided, emails will be logged to the console
-   SMTP_HOST=smtp.example.com
-   SMTP_PORT=587
-   SMTP_USER=your_email@example.com
-   SMTP_PASS=your_email_password
+   # JWT Secret (IMPORTANT: Use the same secret across all deployments)
+   JWT_SECRET=2a1d454ef0700f4a0e08b7523df38f4b03884092e4f8c412af6a26d0329aa8c34571f19c8a34494594c30cbaa5835c087348e4597cb1dc31137e7aa2968ed2aa
+
+   # Email Configuration (optional)
+   EMAIL_HOST=smtp.gmail.com
+   EMAIL_PORT=587
+   EMAIL_USER=your_email@gmail.com
+   EMAIL_PASS=your_app_password
+
+   # Server Configuration
+   PORT=5000
+   NODE_ENV=development
    ```
+
+   **IMPORTANT FOR COLLABORATORS**: 
+   - Get the actual `.env` file from the project maintainer
+   - Ensure the JWT_SECRET is exactly the same across all instances
+   - Update database credentials to match your local PostgreSQL setup
 
 ### Installation
 
@@ -79,6 +88,35 @@ npm install
 ```
 
 > **Troubleshooting:** If the project fails to start with "Cannot find module" errors (e.g., `pdf-parse`, `pg`), ensure your `npm install` finished successfully. You may need to delete `node_modules` and `package-lock.json` and reinstall if corruption occurred.
+
+### For Collaborators (Important!)
+
+If you downloaded this project as a ZIP file from GitHub, follow these steps:
+
+1. **Create the uploads directory** (missing from zip):
+   ```bash
+   mkdir uploads
+   ```
+
+2. **Get the .env file** from the project maintainer - this contains database credentials and JWT secret
+
+3. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+4. **Create your database** in PostgreSQL with the name specified in your `.env` file
+
+5. **Run the application**:
+   ```bash
+   npm run dev
+   ```
+
+**Common Issues & Solutions:**
+- **"Cannot find module" errors**: Run `npm install` to install missing dependencies
+- **Database connection errors**: Check your PostgreSQL credentials in `.env` file
+- **Authentication errors**: Ensure JWT_SECRET matches the maintainer's exactly
+- **Upload errors**: Make sure the `uploads/` directory exists and is writable
 
 ---
 
