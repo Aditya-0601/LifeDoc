@@ -89,8 +89,7 @@ router.post('/login', async (req, res) => {
     res.json({
       message: 'OTP sent to email. Please verify to complete login.',
       requiresOTP: true,
-      email: user.email,
-      devOtp: !process.env.SMTP_HOST ? otp : undefined
+      email: user.email
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -164,10 +163,7 @@ router.post('/forgot-password', async (req, res) => {
 
     await sendOTP(user.email, otp);
 
-    res.json({ 
-      message: 'If that email exists, an OTP has been sent.',
-      devOtp: !process.env.SMTP_HOST ? otp : undefined 
-    });
+    res.json({ message: 'If that email exists, an OTP has been sent.' });
   } catch (error) {
     console.error('Forgot password error:', error);
     res.status(500).json({ error: 'Server error' });

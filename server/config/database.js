@@ -56,6 +56,7 @@ const createTables = () => {
         file_size INTEGER,
         mime_type VARCHAR(100),
         description TEXT,
+        is_favorite INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       
@@ -122,6 +123,11 @@ const createTables = () => {
       try {
         await pool.query('ALTER TABLE documents ADD COLUMN expiry_date DATE');
         console.log('✅ Added expiry_date column to documents table');
+      } catch(e) { /* Ignore if it already exists */ }
+      
+      try {
+        await pool.query('ALTER TABLE documents ADD COLUMN is_favorite INTEGER DEFAULT 0');
+        console.log('✅ Added is_favorite column to documents table');
       } catch(e) { /* Ignore if it already exists */ }
       
       try {

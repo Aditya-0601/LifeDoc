@@ -17,6 +17,7 @@
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("All Categories");
+    const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
     const [selectedDocument, setSelectedDocument] = useState(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [imgError, setImgError] = useState(false);
@@ -45,6 +46,10 @@
           );
         }
         
+        if (showFavoritesOnly) {
+          fetchedDocs = fetchedDocs.filter(d => !!d.isFavorite);
+        }
+        
         setDocs(fetchedDocs);
       } catch (err) {
         console.error("Failed to fetch documents", err);
@@ -58,7 +63,29 @@
         fetchDocuments();
       }, 300); // 300ms debounce
       return () => clearTimeout(delayFn);
-    }, [searchQuery, categoryFilter]);
+    }, [searchQuery, categoryFilter, showFavoritesOnly]);
+
+    const handleToggleFavorite = async (doc, e) => {
+      e.stopPropagation();
+      console.log(`[FRONTEND] Toggling favorite for doc ID: ${doc.id}`);
+      
+      const newStatus = !doc.isFavorite;
+      // Optimistic UI Update
+      setDocs(currentDocs => 
+        currentDocs.map(d => d.id === doc.id ? { ...d, isFavorite: newStatus } : d)
+      );
+      
+      try {
+        await api.patch(`/documents/${doc.id}/favorite`);
+      } catch (err) {
+        console.error("[FRONTEND] Failed to toggle favorite", err);
+        showError('Failed to update favorite status');
+        // Rollback on failure
+        setDocs(currentDocs => 
+          currentDocs.map(d => d.id === doc.id ? { ...d, isFavorite: doc.isFavorite } : d)
+        );
+      }
+    };
 
     const handleDeleteClick = (id, e) => {
       e.stopPropagation();
@@ -219,6 +246,17 @@
             <option>Financial</option>
             <option>Other</option>
           </select>
+          <button
+            onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+            className={`border rounded-lg px-4 py-2.5 text-sm transition-all flex items-center space-x-2 ${
+              showFavoritesOnly 
+                ? 'bg-amber-500/20 border-amber-500/50 text-amber-400' 
+                : 'bg-navy-800/50 border-white/10 text-slate-300 hover:border-white/20'
+            }`}
+          >
+            <Icons.Star size={16} className={showFavoritesOnly ? "fill-amber-400" : ""} />
+            <span>Favorites</span>
+          </button>
         </div>
 
         {loading ? (
@@ -240,6 +278,13 @@
                     title="Download Document"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  </div>
+                  <div 
+                    className={`cursor-pointer p-1 bg-navy-900/50 rounded transition-colors ${doc.isFavorite ? 'text-amber-400 hover:text-amber-300' : 'hover:text-amber-400'}`}
+                    onClick={(e) => handleToggleFavorite(doc, e)}
+                    title={doc.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+                  >
+                    <Icons.Star size={16} className={doc.isFavorite ? "fill-amber-400" : ""} />
                   </div>
                   {!doc.isShared && (
                     <div 

@@ -34,11 +34,8 @@
       setSuccessMessage(null);
       setLoading(true);
       try {
-        const res = await login(email, password);
+        await login(email, password);
         setStep(2);
-        if (res.devOtp) {
-          setSuccessMessage(`DEV MODE - Your OTP is: ${res.devOtp}`);
-        }
       } catch (err) {
         setError(err.response?.data?.error || 'Login failed');
       } finally {
@@ -67,11 +64,7 @@
       setLoading(true);
       try {
         const res = await requestPasswordReset(email);
-        
-        let msg = res.message;
-        if (res.devOtp) msg = `DEV MODE - Your Reset Code is: ${res.devOtp}`;
-        
-        setSuccessMessage(msg);
+        setSuccessMessage(res.message);
         setStep(4);
       } catch (err) {
         setError(err.response?.data?.error || 'Failed to request reset');

@@ -88,6 +88,7 @@ const mapDocument = (req, doc) => {
     fileType: path.extname(doc.file_name || '').toLowerCase().replace('.', '') || 'unknown',
     fileUrl: `${baseUrl}${doc.file_path}`,
     isShared: !!doc.is_shared,
+    isFavorite: !!doc.is_favorite,
     ownerName: doc.owner_name
   };
 };
@@ -320,6 +321,41 @@ router.get('/:id', authenticate, async (req, res) => {
     res.json({ document: mapDocument(req, rows[0]) });
   } catch (error) {
     console.error('Fetch Document Error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Toggle document favorite status
+router.patch('/:id/favorite', authenticate, async (req, res) => {
+  try {
+    const pool = getDb();
+    const docId = parseInt(req.params.id);
+    
+    if (isNaN(docId)) {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
+
+    // Verify ownership of document
+    const { rows } = await pool.query(
+      'SELECT id, is_favorite FROM documents WHERE id = $1 AND user_id = $2',
+      [docId, req.userId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found or access denied' });
+    }
+
+    // Toggle the value
+    const newStatus = rows[0].is_favorite ? 0 : 1;
+
+    await pool.query(
+      'UPDATE documents SET is_favorite = $1 WHERE id = $2',
+      [newStatus, docId]
+    );
+
+    res.json({ message: 'Favorite status updated', isFavorite: !!newStatus });
+  } catch (error) {
+    console.error('Toggle Favorite Error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

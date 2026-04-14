@@ -26,6 +26,7 @@
     const { user } = useAuth();
     const [stats, setStats] = useState({ totalDocs: 0, expiringSoon: 0, usedBytes: 0 });
     const [recentUploads, setRecentUploads] = useState([]);
+    const [importantDocs, setImportantDocs] = useState([]);
     const [upcomingExpiries, setUpcomingExpiries] = useState([]);
     const [hasUnread, setHasUnread] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -56,6 +57,9 @@
 
           // Get top 5 recent uploads
           setRecentUploads(docs.slice(0, 5));
+
+          // Get top 5 important (favorite) documents
+          setImportantDocs(docs.filter(d => Boolean(d.isFavorite)).slice(0, 5));
 
           // --- FIX: Normalize and Filter Upcoming Expiries (PART 1, 2, 3) ---
           const today = new Date();
@@ -332,6 +336,47 @@
               )}
             </GlassCard>
           </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-display font-extrabold text-white tracking-tight">Important Documents</h2>
+            <button onClick={() => window.location.hash = "#/dashboard/documents"} className="text-sm text-cyan-400 hover:text-cyan-300">View All →</button>
+          </div>
+          
+          <GlassCard className="p-0 overflow-hidden">
+            {importantDocs.length === 0 ? (
+              <div className="p-10 flex flex-col items-center justify-center text-center m-4 rounded-xl relative overflow-hidden group">
+                <div className="w-16 h-16 bg-navy-900 rounded-full flex items-center justify-center mb-4 border border-white/10 opacity-70">
+                  <Icons.Star size={24} className="text-slate-500" />
+                </div>
+                <h3 className="text-slate-300 font-medium mb-1">No favorites saved</h3>
+                <p className="text-slate-500 text-sm max-w-sm mb-4">Star your most important documents from the Documents page for quick access here.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-5">
+                {importantDocs.map((doc, i) => (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }} 
+                    animate={{ opacity: 1, scale: 1 }} 
+                    transition={{ delay: i * 0.05 }}
+                    key={doc.id} 
+                    className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors flex items-center justify-between"
+                  >
+                    <div className="flex items-center space-x-3 overflow-hidden">
+                      <div className="w-8 h-8 rounded shrink-0 bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                        <Icons.Star size={14} className="fill-amber-400" />
+                      </div>
+                      <div className="truncate">
+                        <h4 className="text-white font-medium text-sm truncate">{doc.name}</h4>
+                        <span className="text-xs text-slate-400 capitalize">{doc.category || 'Other'}</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </GlassCard>
         </motion.div>
       </motion.div>
     );
