@@ -10,6 +10,9 @@
   const { motion } = window.Motion;
   const { useState, useEffect } = window.React;
   const api = window.api;
+  
+  // Recharts
+  const { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } = window.Recharts || {};
 
   const DashboardLayout = () => {
     return (
@@ -30,19 +33,34 @@
     const [upcomingExpiries, setUpcomingExpiries] = useState([]);
     const [hasUnread, setHasUnread] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [analyticsData, setAnalyticsData] = useState(null);
+
+    const CATEGORY_COLORS = {
+      identity: '#3b82f6',
+      medical: '#10b981',
+      property: '#f59e0b',
+      insurance: '#8b5cf6',
+      financial: '#06b6d4',
+      other: '#64748b'
+    };
 
     useEffect(() => {
       const fetchDashboardData = async () => {
         try {
-          const [docsRes, deadlinesRes, notifRes] = await Promise.all([
+          const [docsRes, deadlinesRes, notifRes, analyticsRes] = await Promise.all([
             api.get('/documents'),
             api.get('/deadlines?upcoming=true'),
-            api.get('/notifications')
+            api.get('/notifications'),
+            api.get('/analytics').catch(() => ({ data: null }))
           ]);
 
           const docs = docsRes.data.documents || [];
           const deadlines = deadlinesRes.data.deadlines || [];
           const notifications = notifRes.data.notifications || [];
+          
+          if (analyticsRes && analyticsRes.data) {
+            setAnalyticsData(analyticsRes.data);
+          }
 
           setHasUnread(notifications.some(n => !n.is_read));
 
@@ -378,6 +396,104 @@
             )}
           </GlassCard>
         </motion.div>
+
+        {/* Analytics Section */}
+        {analyticsData && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-display font-extrabold text-white tracking-tight">Vault Analytics</h2>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+              {/* Category Distribution - SVG Donut Chart */}
+              <GlassCard className="flex flex-col">
+                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-6 flex items-center">
+                  <Icons.PieChart size={16} className="mr-2 text-cyan-400" /> Category Distribution
+                </h3>
+                {analyticsData.byCategory && analyticsData.byCategory.length > 0 ? (() => {
+                  const total = analyticsData.byCategory.reduce((s, c) => s + c.value, 0);
+                  let cum = 0;
+                  const R = 70;
+                  const slices = analyticsData.byCategory.map(cat => {
+                    const pct = cat.value / total;
+                    const startA = cum * 360;
+                    cum += pct;
+                    const endA = cum * 360;
+                    const color = CATEGORY_COLORS[cat.name.toLowerCase()] || CATEGORY_COLORS.other;
+                    const toRad = a => (a - 90) * Math.PI / 180;
+                    return {
+                      ...cat, color, pct,
+                      x1: 90 + R * Math.cos(toRad(startA)),
+                      y1: 90 + R * Math.sin(toRad(startA)),
+                      x2: 90 + R * Math.cos(toRad(endA)),
+                      y2: 90 + R * Math.sin(toRad(endA)),
+                      large: (endA - startA) > 180 ? 1 : 0
+                    };
+                  });
+                  return (
+                    <div className="flex items-center gap-6">
+                      <svg viewBox="0 0 180 180" width="160" height="160" className="shrink-0">
+                        {slices.map((s, i) => (
+                          <path key={i} d={`M90,90 L${s.x1},${s.y1} A${R},${R} 0 ${s.large},1 ${s.x2},${s.y2} Z`} fill={s.color} opacity="0.9" />
+                        ))}
+                        <circle cx="90" cy="90" r="46" fill="#0A0F1C" />
+                        <text x="90" y="87" textAnchor="middle" fill="white" fontSize="18" fontWeight="bold">{total}</text>
+                        <text x="90" y="103" textAnchor="middle" fill="#64748b" fontSize="9">total docs</text>
+                      </svg>
+                      <div className="flex flex-col gap-2.5 flex-1 min-w-0">
+                        {slices.map((s, i) => (
+                          <div key={i} className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                              <span className="text-slate-300 capitalize truncate">{s.name}</span>
+                            </div>
+                            <span className="text-slate-400 font-semibold ml-2 shrink-0">{s.value} ({Math.round(s.pct * 100)}%)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })() : (
+                  <div className="flex flex-col items-center justify-center text-slate-500 text-sm py-10">
+                    <Icons.FileText size={28} className="mb-2 opacity-30" />
+                    <span>Upload some documents first</span>
+                  </div>
+                )}
+              </GlassCard>
+
+              {/* Expiring Soon - CSS Bar Chart */}
+              <GlassCard className="flex flex-col">
+                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-6 flex items-center">
+                  <Icons.BarChart2 size={16} className="mr-2 text-amber-400" /> Expiries in Next 30 Days
+                </h3>
+                {analyticsData.expiringSoon && analyticsData.expiringSoon.length > 0 ? (
+                  <div className="flex flex-col gap-4">
+                    {analyticsData.expiringSoon.map((item, i) => {
+                      const col = item.daysLeft < 7 ? '#ef4444' : item.daysLeft < 15 ? '#f59e0b' : '#10b981';
+                      const pct = Math.max(3, Math.round((item.daysLeft / 30) * 100));
+                      return (
+                        <div key={i} className="flex flex-col gap-1.5">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-slate-300 truncate max-w-[65%]">{item.name}</span>
+                            <span className="font-bold shrink-0" style={{ color: col }}>{item.daysLeft}d left</span>
+                          </div>
+                          <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: col, transition: 'width 0.8s ease' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-emerald-500 bg-emerald-500/5 rounded-xl border border-emerald-500/10 py-10">
+                    <Icons.ShieldCheck size={32} className="mb-2 opacity-60" />
+                    <span className="text-sm font-medium">No deadlines approaching!</span>
+                  </div>
+                )}
+              </GlassCard>
+            </div>
+          </motion.div>
+        )}
       </motion.div>
     );
   };
@@ -385,3 +501,4 @@
   window.DashboardLayout = DashboardLayout;
   window.DashboardIndex = DashboardIndex;
 })();
+

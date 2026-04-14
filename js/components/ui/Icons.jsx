@@ -142,6 +142,25 @@
         <line x1="12" y1="2" x2="12" y2="15" />
       </svg>
     ),
+    PieChart: ({ size = 24, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
+        <path d="M22 12A10 10 0 0 0 12 2v10z" />
+      </svg>
+    ),
+    BarChart2: ({ size = 24, className = "" }) => (
+       <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+         <line x1="18" y1="20" x2="18" y2="10" />
+         <line x1="12" y1="20" x2="12" y2="4" />
+         <line x1="6" y1="20" x2="6" y2="14" />
+       </svg>
+    ),
+    ShieldCheck: ({ size = 24, className = "" }) => (
+       <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+         <path d="m9 12 2 2 4-4" />
+       </svg>
+    ),
   };
 
   window.Icons = Icons;
