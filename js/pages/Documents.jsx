@@ -31,9 +31,67 @@
     const [generatedLink, setGeneratedLink] = useState("");
     const [generatingLink, setGeneratingLink] = useState(false);
 
+    // Version Control State
+    const [docVersions, setDocVersions] = useState([]);
+    const [isVersionsLoading, setIsVersionsLoading] = useState(false);
+    const [isUploadingVersion, setIsUploadingVersion] = useState(false);
+    const fileInputRef = window.React.useRef(null);
+
     useEffect(() => {
       setImgError(false);
+      if (selectedDocument && !selectedDocument.isShared) {
+        fetchVersions(selectedDocument.id);
+      } else {
+        setDocVersions([]);
+      }
     }, [selectedDocument]);
+
+    const fetchVersions = async (id) => {
+      try {
+        setIsVersionsLoading(true);
+        const res = await api.get(`/documents/${id}/versions`);
+        setDocVersions(res.data.versions || []);
+      } catch (err) {
+        console.error("Failed to load versions:", err);
+      } finally {
+        setIsVersionsLoading(false);
+      }
+    };
+
+    const handleUploadVersion = async (e) => {
+      const file = e.target.files[0];
+      if (!file || !selectedDocument) return;
+
+      if (file.size > 10 * 1024 * 1024) {
+        showError('File is too large. Maximum size is 10MB.');
+        return;
+      }
+
+      setIsUploadingVersion(true);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await api.post(`/documents/${selectedDocument.id}/versions`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        showSuccess("New version uploaded securely!");
+        setSelectedDocument(res.data.document); // Update preview to new document
+        fetchVersions(selectedDocument.id); // Refresh history
+        fetchDocuments(); // Refresh backing list
+      } catch (err) {
+        console.error("Failed to upload new version:", err);
+        showError(err.response?.data?.error || "Failed to upload new version.");
+      } finally {
+        setIsUploadingVersion(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+
+    const handleDownloadVersion = (vid, fileName, e) => {
+      e.stopPropagation();
+      window.open(`${api.defaults.baseURL}/documents/version/${vid}/download`, '_blank');
+    };
 
     const fetchDocuments = async () => {
       try {
@@ -426,12 +484,74 @@
                            </p>
                         </div>
                         <div>
-                           <p className="text-slate-500 mb-1 font-medium">Uploaded On</p>
+                           <p className="text-slate-500 mb-1 font-medium">Last Modified</p>
                            <p className="text-slate-300 font-semibold">
                               {selectedDocument.createdAt ? formatDate(selectedDocument.createdAt) : "N/A"}
                            </p>
                         </div>
                       </div>
+
+                      {/* Versions History Area */}
+                      {!selectedDocument.isShared && (
+                        <div className="mt-8 pt-6 border-t border-white/5">
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider flex items-center">
+                              <Icons.Clock size={16} className="mr-2 text-indigo-400" />
+                              Version History
+                            </h3>
+                            <div>
+                              <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                className="hidden" 
+                                onChange={handleUploadVersion} 
+                                accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" 
+                              />
+                              <Button 
+                                variant="secondary" 
+                                className="h-8 px-3 text-xs bg-indigo-500/10 text-indigo-400 border-indigo-500/30 hover:bg-indigo-500/20"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isUploadingVersion}
+                              >
+                                {isUploadingVersion ? "Uploading..." : "Upload New Version"}
+                              </Button>
+                            </div>
+                          </div>
+
+                          {isVersionsLoading ? (
+                            <div className="text-xs text-slate-500 flex items-center"><div className="w-3 h-3 rounded-full border border-indigo-500/30 border-t-indigo-500 animate-spin mr-2"></div> Loading...</div>
+                          ) : (
+                            <div className="space-y-2">
+                              {/* Current Version Indicator */}
+                              <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                                <div className="flex flex-col">
+                                  <span className="text-emerald-400 text-xs font-bold uppercase mb-0.5 flex items-center"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-2 animate-pulse"></div>LATEST VERSION</span>
+                                  <span className="text-slate-400 text-[11px]">Updated on {formatDate(selectedDocument.createdAt)} • {formatBytes(selectedDocument.file_size)}</span>
+                                </div>
+                              </div>
+
+                              {/* Past Versions List */}
+                              {docVersions.length > 0 ? docVersions.map((v, index) => (
+                                <div key={v.id} className="flex items-center justify-between p-3 rounded-lg bg-navy-900/80 border border-white/5 hover:border-white/10 transition-colors">
+                                  <div className="flex flex-col">
+                                    <span className="text-slate-300 text-xs font-semibold mb-0.5">Version {docVersions.length - index}</span>
+                                    <span className="text-slate-500 text-[11px]">Logged on {formatDate(v.created_at)} • {formatBytes(v.file_size)}</span>
+                                  </div>
+                                  <button 
+                                    className="p-1.5 bg-white/5 hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-400 rounded-md transition-colors"
+                                    onClick={(e) => handleDownloadVersion(v.id, v.file_name, e)}
+                                    title="Download Older Version"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                  </button>
+                                </div>
+                              )) : (
+                                <div className="text-xs text-slate-500 py-2 border-l-2 border-dashed border-white/10 pl-3">No previous versions.</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 

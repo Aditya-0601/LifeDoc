@@ -495,4 +495,187 @@ router.post('/:id/share', authenticate, async (req, res) => {
   }
 });
 
+// GET previous versions of a document
+router.get('/:id/versions', authenticate, async (req, res) => {
+  try {
+    const pool = getDb();
+    const docId = parseInt(req.params.id);
+
+    if (isNaN(docId)) {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
+
+    // Verify ownership
+    const { rows: docRows } = await pool.query(
+      'SELECT id FROM documents WHERE id = $1 AND user_id = $2',
+      [docId, req.userId]
+    );
+
+    if (docRows.length === 0) {
+      return res.status(404).json({ error: 'Document not found or access denied' });
+    }
+
+    const { rows } = await pool.query(
+      'SELECT * FROM document_versions WHERE document_id = $1 ORDER BY created_at DESC',
+      [docId]
+    );
+
+    res.json({ versions: rows });
+  } catch (error) {
+    console.error('Fetch Document Versions Error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Upload a new version to an existing document
+router.post('/:id/versions', authenticate, (req, res) => {
+  uploadSingle(req, res, async (uploadError) => {
+    if (uploadError) {
+      return res.status(400).json({ error: uploadError.message || 'File upload failed.' });
+    }
+
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      const pool = getDb();
+      const docId = parseInt(req.params.id);
+
+      if (isNaN(docId)) {
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: 'Invalid document ID' });
+      }
+
+      // Verify ownership
+      const { rows: docRows } = await pool.query(
+        'SELECT * FROM documents WHERE id = $1 AND user_id = $2',
+        [docId, req.userId]
+      );
+
+      if (docRows.length === 0) {
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        return res.status(404).json({ error: 'Document not found' });
+      }
+
+      const existingDoc = docRows[0];
+      let finalFilePath = req.file.path;
+      let finalSize = req.file.size;
+      let detectedExpiryDate = null;
+      let isImage = false;
+
+      // Smart Processing: OCR & Compression
+      try {
+        const ext = path.extname(req.file.originalname).toLowerCase();
+        
+        if (['.jpeg', '.jpg', '.png'].includes(ext)) {
+          isImage = true;
+          try {
+            const compressedPath = req.file.path.replace(ext, `-compressed${ext}`);
+            await sharp(req.file.path).jpeg({ quality: 75 }).toFile(compressedPath);
+            if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+            finalFilePath = compressedPath;
+            finalSize = fs.statSync(compressedPath).size;
+            req.file.path = compressedPath;
+            req.file.filename = path.basename(compressedPath);
+
+            const { data: { text } } = await Tesseract.recognize(compressedPath, 'eng');
+            detectedExpiryDate = extractDateFromText(text);
+          } catch (procErr) {
+            console.warn('Image processing failed:', procErr.message);
+          }
+        } else if (ext === '.pdf') {
+          try {
+            const dataBuffer = fs.readFileSync(req.file.path);
+            const data = await pdfParse(dataBuffer);
+            detectedExpiryDate = extractDateFromText(data.text);
+          } catch (procErr) {
+            console.warn('PDF parsing failed:', procErr.message);
+          }
+        }
+      } catch (outerProcErr) {
+        console.error('Smart processing failed:', outerProcErr);
+      }
+
+      const relativePath = `/uploads/${req.userId}/${req.file.filename}`;
+
+      try {
+        await pool.query('BEGIN');
+
+        // 1. Archive current document into document_versions
+        await pool.query(
+          `INSERT INTO document_versions (document_id, file_name, file_path, file_size, mime_type, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            existingDoc.id, 
+            existingDoc.file_name, 
+            existingDoc.file_path, 
+            existingDoc.file_size, 
+            existingDoc.mime_type, 
+            existingDoc.created_at
+          ]
+        );
+
+        // 2. Update documents table with new file info
+        const result = await pool.query(
+          `UPDATE documents SET file_name = $1, file_path = $2, file_size = $3, mime_type = $4, created_at = CURRENT_TIMESTAMP
+           WHERE id = $5 RETURNING *`,
+          [req.file.originalname, relativePath, finalSize, req.file.mimetype, existingDoc.id]
+        );
+
+        await pool.query('COMMIT');
+
+        res.status(201).json({
+          message: 'New version uploaded successfully',
+          document: mapDocument(req, result.rows[0])
+        });
+      } catch (dbErr) {
+        await pool.query('ROLLBACK');
+        if (fs.existsSync(finalFilePath)) fs.unlinkSync(finalFilePath);
+        throw dbErr;
+      }
+    } catch (error) {
+      console.error('Upload Version Error:', error);
+      if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+});
+
+// Download previous version of a document
+router.get('/version/:vid/download', authenticate, async (req, res) => {
+  try {
+    const pool = getDb();
+    const vid = parseInt(req.params.vid);
+
+    if (isNaN(vid)) {
+      return res.status(400).json({ error: 'Invalid version ID' });
+    }
+
+    // Verify ownership via join
+    const { rows } = await pool.query(`
+      SELECT v.* 
+      FROM document_versions v
+      JOIN documents d ON v.document_id = d.id
+      WHERE v.id = $1 AND d.user_id = $2
+    `, [vid, req.userId]);
+    
+    const version = rows[0];
+    if (!version) {
+      return res.status(404).json({ error: 'Version not found or access denied' });
+    }
+
+    const filePath = path.join(__dirname, '../..', version.file_path);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Historical file securely removed or missing from server' });
+    }
+
+    res.download(filePath, version.file_name);
+  } catch (error) {
+    console.error('Download Version Error:', error);
+    res.status(500).json({ error: 'Server error parsing historical file' });
+  }
+});
+
 module.exports = router;
