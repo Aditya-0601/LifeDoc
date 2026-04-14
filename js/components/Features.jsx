@@ -1,3 +1,9 @@
+/**
+ * Features Component
+ * 
+ * Displays the core features of the LifeDoc application on the landing page 
+ * using animated GlassCards arranged in a grid.
+ */
 (function () {
   const { GlassCard } = window;
   const { motion } = window.Motion;

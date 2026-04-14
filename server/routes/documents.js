@@ -54,6 +54,22 @@ const extractDateFromText = (text) => {
   return match ? match[0] : null;
 };
 
+// Helper to map document for frontend preview system
+const mapDocument = (req, doc) => {
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  return {
+    ...doc, // Backward compatibility
+    id: doc.id,
+    name: doc.title,
+    category: doc.category,
+    expiryDate: doc.expiry_date,
+    createdAt: doc.created_at,
+    fileName: doc.file_name,
+    fileType: path.extname(doc.file_name || '').toLowerCase().replace('.', '') || 'unknown',
+    fileUrl: `${baseUrl}${doc.file_path}`
+  };
+};
+
 // Upload document
 router.post('/upload', authenticate, upload.single('file'), async (req, res) => {
   try {
@@ -159,14 +175,19 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res) => 
 
       res.status(201).json({
         message: 'Document uploaded successfully',
-        document: {
+        document: mapDocument(req, {
           id: newDoc.id,
           title: title || req.file.originalname,
           category: category || 'other',
           file_name: req.file.originalname,
           file_path: relativePath,
-          created_at: newDoc.created_at
-        },
+          created_at: newDoc.created_at,
+          expiry_date: expiry_date || null,
+          description: description || '',
+          mime_type: req.file.mimetype,
+          file_size: finalSize,
+          user_id: req.userId
+        }),
         metadata: {
           wasCompressed: isImage,
           originalSize: req.file.size,
@@ -204,7 +225,7 @@ router.get('/search', authenticate, async (req, res) => {
       [req.userId, `%${q}%`]
     );
     
-    res.json({ documents: rows });
+    res.json({ documents: rows.map(doc => mapDocument(req, doc)) });
   } catch (error) {
     console.error('Search Documents Error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -228,7 +249,7 @@ router.get('/', authenticate, async (req, res) => {
     query += ' ORDER BY created_at DESC';
 
     const { rows } = await pool.query(query, params);
-    res.json({ documents: rows });
+    res.json({ documents: rows.map(doc => mapDocument(req, doc)) });
   } catch (error) {
     console.error('Fetch Documents Error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -248,9 +269,36 @@ router.get('/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Document not found' });
     }
     
-    res.json({ document: rows[0] });
+    res.json({ document: mapDocument(req, rows[0]) });
   } catch (error) {
     console.error('Fetch Document Error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Download document
+router.get('/:id/download', authenticate, async (req, res) => {
+  try {
+    const pool = getDb();
+    const { rows } = await pool.query(
+      'SELECT * FROM documents WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.userId]
+    );
+    
+    const document = rows[0];
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const filePath = path.join(__dirname, '../..', document.file_path);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File not found on server' });
+    }
+
+    res.download(filePath, document.file_name);
+  } catch (error) {
+    console.error('Download Document Error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

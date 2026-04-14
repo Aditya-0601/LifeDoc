@@ -1,3 +1,9 @@
+/**
+ * Sidebar Component
+ * 
+ * The main side navigation menu for the dashboard. Renders links to various 
+ * sections (Dashboard, Documents, Upload, Reminders, Family Access, Notifications).
+ */
 (function () {
   const { NavLink } = window.Router;
   const { Icons } = window;

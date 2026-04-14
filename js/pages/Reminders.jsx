@@ -1,3 +1,9 @@
+/**
+ * Reminders Page
+ * 
+ * Tracks document expiries and manual deadlines. 
+ * Provides multiple views (List, Timeline, History) and alerts for urgent items.
+ */
 (function() {
   const { GlassCard, Icons, Button, useToast } = window;
   const { motion, AnimatePresence } = window.Motion;

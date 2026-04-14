@@ -1,3 +1,9 @@
+/**
+ * Documents Page
+ * 
+ * Displays a list of all documents stored in the vault. 
+ * Allows searching, filtering, previewing, downloading, and deleting documents.
+ */
 (function () {
   const { GlassCard, Button, Icons, useToast } = window;
   const { motion, AnimatePresence } = window.Motion;
@@ -80,16 +86,17 @@
       e.stopPropagation();
       setSelectedDocument(doc);
       setIsPreviewOpen(true);
+      setImgError(false);
     };
 
-    const handleDownload = (path, e) => {
+    const handleDownload = (doc, e) => {
       e.stopPropagation();
-      // Simple link to download
-      window.open(`http://localhost:5000${path}`, '_blank');
+      // Use the dedicated download endpoint for better filename control
+      window.open(`${api.defaults.baseURL}/documents/${doc.id}/download`, '_blank');
     };
 
     const renderPreview = () => {
-      if (!selectedDocument || !selectedDocument.file_path) {
+      if (!selectedDocument || !selectedDocument.fileUrl) {
         return (
           <div className="w-full flex flex-col items-center justify-center text-slate-500 min-h-[350px]">
             <div className="w-20 h-20 rounded-2xl bg-slate-800/50 flex items-center justify-center mb-6 border border-white/5 shadow-[inset_0_0_20px_rgba(0,0,0,0.2)]">
@@ -100,16 +107,16 @@
         );
       }
 
-      const filePath = selectedDocument.file_path.toLowerCase();
-      const isImage = filePath.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-      const isPdf = filePath.match(/\.pdf$/i);
+      const fileType = selectedDocument.fileType || 'unknown';
+      const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileType);
+      const isPdf = fileType === 'pdf';
 
       if (isImage && !imgError) {
         return (
           <div className="flex items-center justify-center h-full w-full bg-navy-900/30 rounded-xl p-4 border border-white/5 min-h-[350px]">
             <img 
-              src={`http://localhost:5000${selectedDocument.file_path}`} 
-              alt={selectedDocument.title || 'Document Preview'} 
+              src={selectedDocument.fileUrl} 
+              alt={selectedDocument.name || 'Document Preview'} 
               className="max-w-full max-h-[400px] object-contain rounded-lg shadow-lg"
               onError={() => setImgError(true)}
             />
@@ -117,12 +124,15 @@
         );
       } else if (isPdf) {
         return (
-          <div className="flex flex-col items-center justify-center h-full w-full min-h-[350px]">
+          <div className="flex flex-col items-center justify-center h-full w-full min-h-[350px] p-8 text-center">
             <div className="w-24 h-24 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mb-6 shadow-[inset_0_0_20px_rgba(239,68,68,0.1)] border border-red-500/20">
               <Icons.FileText size={48} />
             </div>
-            <h3 className="text-2xl font-display font-bold text-white mb-2">PDF Preview</h3>
-            <p className="text-slate-400 text-sm text-center">Full PDF rendering requires downloading.</p>
+            <h3 className="text-2xl font-display font-bold text-white mb-2">PDF Document</h3>
+            <p className="text-slate-400 text-sm mb-6">PDF files are securely stored. For full viewing experience, please download the file.</p>
+            <Button variant="secondary" onClick={(e) => handleDownload(selectedDocument, e)} className="flex items-center">
+              <Icons.FileText size={16} className="mr-2" /> Download to View
+            </Button>
           </div>
         );
       } else {
@@ -131,9 +141,11 @@
             <div className="w-24 h-24 rounded-2xl bg-cyan-500/10 text-cyan-500 flex items-center justify-center mb-6 shadow-[inset_0_0_20px_rgba(6,182,212,0.1)] border border-cyan-500/20">
               <Icons.FileText size={48} />
             </div>
-            <h3 className="text-2xl font-display font-bold text-slate-300 mb-2">Preview not available</h3>
-            <p className="text-slate-400 text-sm text-center">
-              {imgError ? "Image failed to load securely." : "This file type cannot be previewed directly."}
+            <h3 className="text-2xl font-display font-bold text-slate-300 mb-2">
+               {isPdf ? "PDF Document" : "Preview not available"}
+            </h3>
+            <p className="text-slate-400 text-sm text-center max-w-xs">
+              {imgError ? "Image failed to load securely." : `The .${fileType} file format is stored safely but cannot be previewed directly.`}
             </p>
           </div>
         );
@@ -198,7 +210,7 @@
                 <div className="absolute top-4 right-4 flex space-x-2 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                   <div 
                     className="hover:text-cyan-400 cursor-pointer p-1 bg-navy-900/50 rounded"
-                    onClick={(e) => handleDownload(doc.file_path, e)}
+                    onClick={(e) => handleDownload(doc, e)}
                     title="Download Document"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -213,10 +225,14 @@
                 </div>
                 
                 <div className="cursor-pointer" onClick={(e) => handlePreview(doc, e)}>
-                  <div className="w-12 h-12 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-cyan-500/20 transition-all">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-all ${
+                    doc.fileType === 'pdf' ? 'bg-red-500/10 text-red-400 group-hover:bg-red-500/20' : 
+                    ['jpg','jpeg','png'].includes(doc.fileType) ? 'bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20' :
+                    'bg-cyan-500/10 text-cyan-400 group-hover:bg-cyan-500/20'
+                  }`}>
                     <Icons.FileText size={20} />
                   </div>
-                  <h3 className="font-semibold text-white/90 text-sm truncate mb-1" title={doc.title}>{doc.title}</h3>
+                  <h3 className="font-semibold text-white/90 text-sm truncate mb-1" title={doc.name}>{doc.name}</h3>
                   <p className="text-xs font-medium text-cyan-400 mb-3 capitalize">{doc.category || 'Other'}</p>
                 </div>
 
@@ -248,7 +264,7 @@
                 <GlassCard className="p-0 border-cyan-500/20 ring-1 ring-white/10 overflow-hidden flex flex-col items-center">
                   <div className="w-full flex justify-between items-center p-6 border-b border-white/10 bg-navy-900/50 shadow-sm">
                     <h2 className="text-xl font-display font-bold text-white flex items-center truncate">
-                      <Icons.FileText className="mr-3 text-cyan-400 shrink-0" size={20} /> <span className="truncate">{selectedDocument.title}</span>
+                      <Icons.FileText className={`mr-3 shrink-0 ${selectedDocument.fileType === 'pdf' ? 'text-red-400' : 'text-cyan-400'}`} size={20} /> <span className="truncate">{selectedDocument.name}</span>
                     </h2>
                     <button onClick={() => setIsPreviewOpen(false)} className="text-slate-400 hover:text-white bg-white/5 hover:bg-red-500/20 hover:text-red-400 p-2 rounded-full transition-colors flex-shrink-0">
                       <Icons.Plus className="rotate-45" size={20}/>
@@ -264,7 +280,7 @@
                       <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
                         <div>
                           <p className="text-slate-500 mb-1 font-medium">Document Name</p>
-                          <p className="text-slate-300 font-semibold truncate" title={selectedDocument.title}>{selectedDocument.title || "N/A"}</p>
+                          <p className="text-slate-300 font-semibold truncate" title={selectedDocument.name}>{selectedDocument.name || "N/A"}</p>
                         </div>
                         <div>
                           <p className="text-slate-500 mb-1 font-medium">Category</p>
@@ -279,13 +295,13 @@
                         <div>
                            <p className="text-slate-500 mb-1 font-medium">Expiry Date</p>
                            <p className="text-slate-300 font-semibold">
-                              {selectedDocument.expiry_date ? formatDate(selectedDocument.expiry_date) : "N/A"}
+                              {selectedDocument.expiryDate ? formatDate(selectedDocument.expiryDate) : "N/A"}
                            </p>
                         </div>
                         <div>
                            <p className="text-slate-500 mb-1 font-medium">Uploaded On</p>
                            <p className="text-slate-300 font-semibold">
-                              {selectedDocument.created_at ? formatDate(selectedDocument.created_at) : "N/A"}
+                              {selectedDocument.createdAt ? formatDate(selectedDocument.createdAt) : "N/A"}
                            </p>
                         </div>
                       </div>
@@ -301,10 +317,10 @@
                     >
                       Close
                     </Button>
-                    {selectedDocument && selectedDocument.file_path ? (
+                    {selectedDocument && selectedDocument.fileUrl ? (
                       <Button 
                         variant="primary" 
-                        onClick={(e) => handleDownload(selectedDocument.file_path, e)} 
+                        onClick={(e) => handleDownload(selectedDocument, e)} 
                         aria-label="Download Document"
                         className="transition-transform hover:scale-105 shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:shadow-[0_0_25px_rgba(6,182,212,0.4)]"
                       >

@@ -1,3 +1,9 @@
+/**
+ * Landing Page
+ * 
+ * The default entry point of the application for unauthenticated users. 
+ * Combines the Hero section, Features showcase, and a mock Product Demo.
+ */
 (function () {
   const { Hero, Features, GlassCard, Button, Icons } = window;
   const { motion } = window.Motion;

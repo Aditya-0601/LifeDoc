@@ -1,3 +1,9 @@
+/**
+ * Profile Page
+ * 
+ * Allows users to view and edit their personal information.
+ * Additionally provides security settings like changing the account password and global logout.
+ */
 (function () {
   const { GlassCard, Button, Icons, useAuth, useToast } = window;
   const { motion } = window.Motion;

@@ -1,3 +1,10 @@
+/**
+ * AuthContext
+ * 
+ * Manages user authentication state, token storage, and session validation.
+ * Exposes methods for login, registration, OTP verification, and logout, 
+ * as well as a ProtectedRoute component.
+ */
 (function () {
   const { createContext, useState, useEffect, useContext } = window.React;
   const { Navigate, useLocation } = window.Router;

@@ -1,3 +1,9 @@
+/**
+ * App Component
+ * 
+ * The root mount point for React. Sets up the application's Context Providers 
+ * (Toast, Auth) and configures the routing map mapping URLs to page components.
+ */
 (function () {
   const { HashRouter, Routes, Route, Navigate } = window.Router;
   const {

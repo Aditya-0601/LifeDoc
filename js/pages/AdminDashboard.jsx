@@ -1,3 +1,9 @@
+/**
+ * Admin Dashboard
+ * 
+ * A privileged interface for system administrators to oversee the platform.
+ * Provides statistics, user management (enable/disable), and document moderation (delete).
+ */
 (function () {
   const { GlassCard, Button, Icons, useToast } = window;
   const { motion } = window.Motion;

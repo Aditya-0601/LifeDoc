@@ -1,3 +1,9 @@
+/**
+ * Notifications Page
+ * 
+ * Central hub for system alerts, security logs, and updates about the vault.
+ * Automatically marks unread notifications as read when viewed.
+ */
 (function() {
   const { GlassCard, Icons } = window;
   const { motion } = window.Motion;

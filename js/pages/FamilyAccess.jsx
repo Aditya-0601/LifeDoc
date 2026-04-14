@@ -1,3 +1,9 @@
+/**
+ * Family Access Page
+ * 
+ * Manages trusted emergency contacts. Allows sending invites, approving/rejecting 
+ * requested access, and revoking existing access to the vault.
+ */
 (function () {
   const { GlassCard, Button, Icons, useToast } = window;
   const { motion } = window.Motion;

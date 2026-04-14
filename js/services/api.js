@@ -1,3 +1,9 @@
+/**
+ * API Service Configuration
+ * 
+ * Sets up the Axios instance with base URL and interceptors. 
+ * Specifically injects the JWT token from localStorage into outgoing requests.
+ */
 (function () {
   const api = window.axios.create({
     baseURL: 'http://localhost:5000/api',

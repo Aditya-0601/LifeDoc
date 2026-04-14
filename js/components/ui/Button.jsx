@@ -1,3 +1,9 @@
+/**
+ * Button Component
+ * 
+ * A reusable UI button component with primary, secondary, and ghost variants.
+ * Integrated with Framer Motion for tap and hover animations.
+ */
 (function () {
   const { motion } = window.Motion;
 

@@ -1,3 +1,10 @@
+/**
+ * Icons Collection
+ * 
+ * Provides a centralized collection of SVG icons used throughout the project.
+ * Uses Lucide-like SVG paths. All icons are attached globally via window.Icons
+ * to be accessible without imports.
+ */
 // Safe isolation
 (function () {
   const { createElement: h } = React;

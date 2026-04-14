@@ -1,3 +1,9 @@
+/**
+ * GlassCard Component
+ * 
+ * A reusable UI wrapper that provides a frosted-glass (glassmorphism) style 
+ * card container. Supports hover effects and custom class names.
+ */
 (function() {
   const { motion } = window.Motion;
 

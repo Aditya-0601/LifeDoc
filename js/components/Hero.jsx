@@ -1,3 +1,9 @@
+/**
+ * Hero Component
+ * 
+ * The main landing page animated heroic section. Implements a scroll-driven 
+ * canvas animation blending multiple PNG frames to reveal a digital vault.
+ */
 (function () {
   const { useEffect, useRef } = React;
   const { motion } = window.Motion;

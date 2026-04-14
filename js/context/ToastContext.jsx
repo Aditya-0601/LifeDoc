@@ -1,3 +1,9 @@
+/**
+ * ToastContext
+ * 
+ * Provides a global notification system (toasts) across the application. 
+ * Allows triggering success, error, and info messages which appear overlaid on the screen.
+ */
 (function () {
   const { createContext, useState, useContext, useCallback, useRef } = window.React;
   const { motion, AnimatePresence } = window.Motion;

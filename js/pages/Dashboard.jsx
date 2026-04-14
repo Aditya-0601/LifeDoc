@@ -1,3 +1,9 @@
+/**
+ * Dashboard & Dashboard Layout
+ * 
+ * The main authenticated layout containing the Sidebar and Outlet for nested routes.
+ * DashboardIndex provides the primary overview with stats, recent uploads, and upcoming expiries.
+ */
 (function () {
   const { Sidebar, Icons, GlassCard, Button, useAuth } = window;
   const { Outlet, Link } = window.Router;
@@ -194,11 +200,15 @@
                   >
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                     <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center shrink-0 border border-cyan-500/20 group-hover:scale-110 transition-transform">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 border group-hover:scale-110 transition-transform ${
+                         doc.fileType === 'pdf' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 
+                         ['jpg','jpeg','png'].includes(doc.fileType) ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                         'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'
+                      }`}>
                         <Icons.FileText size={18} />
                       </div>
                       <div>
-                        <h4 className="text-white font-medium truncate max-w-[200px] sm:max-w-md group-hover:text-cyan-400 transition-colors">{doc.title}</h4>
+                        <h4 className="text-white font-medium truncate max-w-[200px] sm:max-w-md group-hover:text-cyan-400 transition-colors">{doc.name}</h4>
                         <div className="flex items-center text-xs text-slate-500 mt-1">
                           <span className="bg-white/5 px-2 py-0.5 rounded text-slate-400 font-medium mr-2">Uploaded</span>
                           <span className="capitalize">{doc.category || 'Other'} Document</span>
@@ -207,7 +217,7 @@
                     </div>
                     <div className="flex items-center space-x-2 text-slate-500 text-xs mt-3 sm:mt-0 ml-14 sm:ml-0 font-medium bg-navy-900/50 px-3 py-1.5 rounded-lg border border-white/5">
                       <Icons.Clock size={12} className="text-indigo-400" />
-                      <span>{formatDate(doc.created_at)}</span>
+                      <span>{formatDate(doc.createdAt)}</span>
                     </div>
                   </motion.div>
                 ))}

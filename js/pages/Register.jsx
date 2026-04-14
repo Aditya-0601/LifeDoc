@@ -1,3 +1,9 @@
+/**
+ * Register Page
+ * 
+ * Handles new user registration. Captures name, email, and master password
+ * to provision a new secure vault account.
+ */
 (function () {
   const { GlassCard, Button, Icons, useAuth } = window;
   const { Link, useNavigate } = window.Router;

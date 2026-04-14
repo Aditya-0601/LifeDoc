@@ -1,3 +1,10 @@
+/**
+ * Upload Document Page
+ * 
+ * Interface for securely uploading new files to the vault.
+ * Supports drag-and-drop, captures metadata like title and category,
+ * and shows upload progress.
+ */
 (function () {
   const { GlassCard, Button, Icons } = window;
   const { motion } = window.Motion;

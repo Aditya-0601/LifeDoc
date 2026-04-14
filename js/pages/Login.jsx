@@ -1,3 +1,9 @@
+/**
+ * Login Page
+ * 
+ * Handles user authentication. Provides a dual-step login interface 
+ * (Email/Password -> OTP Verification) before redirecting to the Dashboard.
+ */
 (function () {
   const { GlassCard, Button, Icons, useAuth } = window;
   const { Link, useNavigate, useLocation } = window.Router;
