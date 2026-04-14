@@ -34,17 +34,26 @@ const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|pdf|doc|docx/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    
-    if (extname && mimetype) {
+    const allowedExtensions = new Set(['.jpeg', '.jpg', '.png', '.pdf', '.doc', '.docx']);
+    const allowedMimeTypes = new Set([
+      'image/jpeg',
+      'image/png',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ]);
+    const extname = path.extname(file.originalname).toLowerCase();
+    const isValidExtension = allowedExtensions.has(extname);
+    const isValidMimeType = allowedMimeTypes.has(file.mimetype);
+
+    if (isValidExtension && isValidMimeType) {
       cb(null, true);
     } else {
       cb(new Error('Invalid file type. Only images, PDFs, and documents are allowed.'));
     }
   }
 });
+const uploadSingle = upload.single('file');
 
 // Helper for extracting dates from OCR text
 const extractDateFromText = (text) => {
@@ -55,11 +64,21 @@ const extractDateFromText = (text) => {
 };
 
 // Upload document
-router.post('/upload', authenticate, upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+router.post('/upload', authenticate, (req, res) => {
+  uploadSingle(req, res, async (uploadError) => {
+    if (uploadError) {
+      const isFileSizeError = uploadError.code === 'LIMIT_FILE_SIZE';
+      return res.status(400).json({
+        error: isFileSizeError
+          ? 'File too large. Maximum allowed size is 10MB.'
+          : uploadError.message || 'File upload failed.'
+      });
     }
+
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
 
     const { title, category, description, expiry_date } = req.body;
     const pool = getDb();
@@ -185,8 +204,9 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res) => 
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
-    res.status(500).json({ error: 'Server error' });
-  }
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
 });
 
 // Search documents
