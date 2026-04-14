@@ -9,10 +9,13 @@ const init = () => {
     // so it's important to provide a DATABASE_URL for production.
     const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/lifedoc';
     
+    const isLocalConnection = /localhost|127\.0\.0\.1/.test(connectionString);
+    const shouldUseSsl =
+      process.env.DB_SSL === 'true' || (!isLocalConnection && process.env.DB_SSL !== 'false');
+
     pool = new Pool({
       connectionString,
-      // For some cloud DBs requiring SSL, you might need:
-      // ssl: { rejectUnauthorized: false }
+      ssl: shouldUseSsl ? { rejectUnauthorized: false } : false
     });
 
     pool.connect((err, client, release) => {
