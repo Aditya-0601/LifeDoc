@@ -67,19 +67,30 @@
 
     const confirmDelete = async () => {
       const id = confirmDeleteDocId;
-      console.log("Deleting ID:", id);
+      if (!id) return;
+      
+      console.log(`[FRONTEND] Confirming deletion for ID: ${id}`);
       setConfirmDeleteDocId(null);
-      // Optimistic UI Update
-      const originalDocs = [...docs];
-      setDocs(docs.filter(d => d.id !== id));
       
       try {
+        // Optimistic UI Update using functional form to prevent stale state bugs
+        setDocs(currentDocs => {
+          const exists = currentDocs.some(d => d.id === id);
+          if (!exists) {
+            console.warn(`[FRONTEND] Trying to delete ID ${id} but it's not in the visible list.`);
+          }
+          return currentDocs.filter(d => d.id !== id);
+        });
+
         await api.delete(`/documents/${id}`);
         showSuccess('Document deleted successfully');
       } catch (err) {
-        console.error("Delete failed:", err);
-        showError(err.response?.data?.error || 'Failed to delete document');
-        setDocs(originalDocs); // Rollback on error
+        console.error("[FRONTEND] Delete failed:", err);
+        const errorMsg = err.response?.data?.error || 'Failed to delete document';
+        showError(errorMsg);
+        
+        // Refetch to ensure UI is in sync with server instead of blindly reverting
+        fetchDocuments();
       }
     };
 

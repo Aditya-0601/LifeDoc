@@ -355,18 +355,24 @@ router.get('/:id/download', authenticate, async (req, res) => {
 router.delete('/:id', authenticate, async (req, res) => {
   try {
     const pool = getDb();
+    const docId = parseInt(req.params.id);
     
-    console.log("Delete request received:", req.params.id);
+    if (isNaN(docId)) {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
+    
+    console.log(`[DELETE] User ${req.userId} is trying to delete document ${docId}`);
 
     // First get the document to delete the file from the filesystem
     const { rows } = await pool.query(
       'SELECT * FROM documents WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.userId]
+      [docId, req.userId]
     );
 
     const document = rows[0];
 
     if (!document) {
+      console.warn(`[DELETE] Document ${docId} not found or access denied for user ${req.userId}`);
       return res.status(404).json({ error: 'Document not found' });
     }
 
@@ -383,7 +389,7 @@ router.delete('/:id', authenticate, async (req, res) => {
     // Delete from database
     await pool.query(
       'DELETE FROM documents WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.userId]
+      [docId, req.userId]
     );
 
     // Create Notification
