@@ -1,5 +1,4 @@
 require('dotenv').config({ path: './.env' });
-console.log("DB URL:", process.env.DATABASE_URL);
 
 const express = require('express');
 const cors = require('cors');
@@ -18,7 +17,6 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Database initialization
 const db = require('./config/database');
-db.init();
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -34,9 +32,18 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'LifeDoc API is running' });
 });
 
-// Start reminder scheduler
-require('./services/reminderService').start();
+const startServer = async () => {
+  try {
+    await db.init();
+    // Start reminder scheduler only after DB is ready.
+    require('./services/reminderService').start();
+    app.listen(PORT, () => {
+      console.log(`🚀 LifeDoc server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to initialize database:', error.message);
+    process.exit(1);
+  }
+};
 
-app.listen(PORT, () => {
-  console.log(`🚀 LifeDoc server running on port ${PORT}`);
-});
+startServer();

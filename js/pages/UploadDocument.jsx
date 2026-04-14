@@ -38,9 +38,20 @@
 
     const validateAndSetFile = (selectedFile) => {
       setError('');
-      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+const allowedTypes = [
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'image/jpg',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ];
       if (!allowedTypes.includes(selectedFile.type)) {
-        setError('Only PDF, JPG, or PNG files are supported.');
+        setError('Only PDF, JPG, PNG, DOC, or DOCX files are supported.');
+        return;
+      }
+      if (selectedFile.size > 10 * 1024 * 1024) {
+        setError('File too large. Maximum allowed size is 10MB.');
         return;
       }
       setFile(selectedFile);
@@ -61,7 +72,8 @@
         await api.post('/documents/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           onUploadProgress: (progressEvent) => {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            const total = progressEvent.total || 1;
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / total);
             setProgress(percentCompleted);
           }
         });
