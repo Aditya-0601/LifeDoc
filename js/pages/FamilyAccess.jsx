@@ -6,7 +6,7 @@
  */
 (function () {
   const { GlassCard, Button, Icons, useToast } = window;
-  const { motion } = window.Motion;
+  const { motion, AnimatePresence } = window.Motion;
   const { useState, useEffect } = window.React;
   const api = window.api;
 
@@ -19,6 +19,7 @@
     const { showSuccess, showError } = useToast();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
+    const [confirmRevokeId, setConfirmRevokeId] = useState(null);
 
     const fetchMembers = async () => {
       try {
@@ -54,15 +55,19 @@
       }
     };
 
-    const handleRevoke = async (id) => {
-      if(confirm('Are you sure you want to revoke access?')) {
-        try {
-          await api.delete(`/family-access/${id}`);
-          fetchMembers();
-          showSuccess('Access revoked');
-        } catch (err) {
-          showError('Failed to revoke access');
-        }
+    const handleRevokeClick = (id) => {
+      setConfirmRevokeId(id);
+    };
+
+    const confirmRevoke = async () => {
+      const id = confirmRevokeId;
+      setConfirmRevokeId(null);
+      try {
+        await api.delete(`/family-access/${id}`);
+        fetchMembers();
+        showSuccess('Access revoked');
+      } catch (err) {
+        showError('Failed to revoke access');
       }
     };
 
@@ -194,7 +199,7 @@
                     <div className="text-sm text-slate-400 font-medium">
                       {member.status === 'approved' ? 'Emergency Contact' : member.status === 'rejected' ? 'Invited Denied' : 'Awaiting Response'}
                     </div>
-                    <button onClick={() => handleRevoke(member.id)} className="text-slate-500 hover:text-red-400 transition-colors" title="Revoke Access">
+                    <button onClick={() => handleRevokeClick(member.id)} className="text-slate-500 hover:text-red-400 transition-colors" title="Revoke Access">
                       <Icons.Trash size={18} />
                     </button>
                   </div>
@@ -236,6 +241,23 @@
             )}
           </div>
         )}
+        <AnimatePresence>
+          {confirmRevokeId && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-navy-900/90 backdrop-blur-sm" onClick={() => setConfirmRevokeId(null)} />
+               <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative z-10 w-full max-w-sm">
+                 <GlassCard className="p-6 border-red-500/30">
+                   <h3 className="text-xl font-bold text-white mb-2 flex items-center"><Icons.AlertTriangle className="text-red-400 mr-2" size={20}/> Revoke Access?</h3>
+                   <p className="text-slate-400 text-sm mb-6">Are you sure you want to revoke this person's emergency access? They will no longer be able to view your documents.</p>
+                   <div className="flex justify-end space-x-3">
+                     <Button variant="secondary" onClick={() => setConfirmRevokeId(null)}>Cancel</Button>
+                     <Button variant="danger" onClick={confirmRevoke} className="bg-red-500 hover:bg-red-600 text-white border-transparent">Revoke</Button>
+                   </div>
+                 </GlassCard>
+               </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </motion.div>
     );
   };

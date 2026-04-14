@@ -3,6 +3,17 @@ const { authenticate } = require('../middleware/auth');
 const { getDb } = require('../config/database');
 const router = express.Router();
 
+router.post('/verify', authenticate, (req, res) => {
+  const { code } = req.body;
+  const adminSecret = process.env.ADMIN_SECRET || '123456';
+  
+  if (code === adminSecret) {
+    res.json({ success: true });
+  } else {
+    res.status(403).json({ error: 'Invalid admin code' });
+  }
+});
+
 router.get('/users', authenticate, async (req, res) => {
   try {
     const pool = getDb();

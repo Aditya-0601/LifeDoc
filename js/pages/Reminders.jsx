@@ -248,9 +248,30 @@
                       <label className="block text-sm font-semibold text-slate-300 mb-2">Title / Subject</label>
                       <input type="text" required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full bg-navy-900 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder:text-slate-600" placeholder="e.g. Passport Renewal Tracker" />
                     </div>
-                    <div>
+                    <div className="relative">
                       <label className="block text-sm font-semibold text-slate-300 mb-2">Target Expiry Date</label>
-                      <input type="date" required value={formData.deadline_date} onChange={e => setFormData({...formData, deadline_date: e.target.value})} className="w-full bg-navy-900 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all [color-scheme:dark]" />
+                      <div className="relative flex items-center bg-navy-900 border border-white/10 rounded-xl overflow-hidden focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500 transition-all">
+                        <div className="pl-4 text-cyan-500 pointer-events-none absolute left-0 z-10">
+                           <Icons.Calendar size={18} />
+                        </div>
+                        <input 
+                          type="date" 
+                          required 
+                          value={formData.deadline_date} 
+                          onChange={e => setFormData({...formData, deadline_date: e.target.value})} 
+                          className="w-full bg-transparent px-11 py-3 text-white outline-none cursor-pointer appearance-none [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
+                        />
+                        {formData.deadline_date && (
+                          <button 
+                            type="button" 
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormData({...formData, deadline_date: ''}); }} 
+                            className="absolute right-3 p-1 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-md z-20 transition-all flex items-center justify-center" 
+                            title="Clear Date"
+                          >
+                             <Icons.Plus className="rotate-45" size={14} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-slate-300 mb-2">Category Filter</label>

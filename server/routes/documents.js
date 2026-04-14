@@ -75,7 +75,6 @@ const extractDateFromText = (text) => {
   return match ? match[0] : null;
 };
 
-// Helper to map document for frontend preview system
 const mapDocument = (req, doc) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   return {
@@ -87,7 +86,9 @@ const mapDocument = (req, doc) => {
     createdAt: doc.created_at,
     fileName: doc.file_name,
     fileType: path.extname(doc.file_name || '').toLowerCase().replace('.', '') || 'unknown',
-    fileUrl: `${baseUrl}${doc.file_path}`
+    fileUrl: `${baseUrl}${doc.file_path}`,
+    isShared: !!doc.is_shared,
+    ownerName: doc.owner_name
   };
 };
 
@@ -250,7 +251,16 @@ router.get('/search', authenticate, async (req, res) => {
     }
 
     const { rows } = await pool.query(
-      'SELECT * FROM documents WHERE user_id = $1 AND (title ILIKE $2 OR category ILIKE $2 OR description ILIKE $2) ORDER BY created_at DESC',
+      `SELECT d.*, 
+              CASE WHEN d.user_id = $1 THEN false ELSE true END as is_shared,
+              u.name as owner_name
+       FROM documents d
+       LEFT JOIN users u ON d.user_id = u.id
+       WHERE (d.user_id = $1 OR d.user_id IN (
+           SELECT user_id FROM family_access WHERE family_member_email = (SELECT email FROM users WHERE id = $1) AND status = 'approved'
+       ))
+       AND (d.title ILIKE $2 OR d.category ILIKE $2 OR d.description ILIKE $2)
+       ORDER BY d.created_at DESC`,
       [req.userId, `%${q}%`]
     );
     
@@ -267,15 +277,24 @@ router.get('/', authenticate, async (req, res) => {
     const pool = getDb();
     const { category } = req.query;
 
-    let query = 'SELECT * FROM documents WHERE user_id = $1';
+    let query = `
+      SELECT d.*, 
+             CASE WHEN d.user_id = $1 THEN false ELSE true END as is_shared,
+             u.name as owner_name
+      FROM documents d
+      LEFT JOIN users u ON d.user_id = u.id
+      WHERE (d.user_id = $1 OR d.user_id IN (
+          SELECT user_id FROM family_access WHERE family_member_email = (SELECT email FROM users WHERE id = $1) AND status = 'approved'
+      ))
+    `;
     const params = [req.userId];
 
     if (category) {
-      query += ' AND category = $2';
+      query += ' AND d.category = $2';
       params.push(category);
     }
 
-    query += ' ORDER BY created_at DESC';
+    query += ' ORDER BY d.created_at DESC';
 
     const { rows } = await pool.query(query, params);
     res.json({ documents: rows.map(doc => mapDocument(req, doc)) });
@@ -337,6 +356,8 @@ router.delete('/:id', authenticate, async (req, res) => {
   try {
     const pool = getDb();
     
+    console.log("Delete request received:", req.params.id);
+
     // First get the document to delete the file from the filesystem
     const { rows } = await pool.query(
       'SELECT * FROM documents WHERE id = $1 AND user_id = $2',
@@ -352,7 +373,11 @@ router.delete('/:id', authenticate, async (req, res) => {
     // Delete the file
     const filePath = path.join(__dirname, '../..', document.file_path);
     if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+      try {
+        fs.unlinkSync(filePath);
+      } catch (fileErr) {
+        console.warn('Could not delete file from disk (might be locked/missing):', fileErr.message);
+      }
     }
 
     // Delete from database
@@ -360,11 +385,18 @@ router.delete('/:id', authenticate, async (req, res) => {
       'DELETE FROM documents WHERE id = $1 AND user_id = $2',
       [req.params.id, req.userId]
     );
+
+    // Create Notification
+    await pool.query(
+      `INSERT INTO notifications (user_id, title, description, type) VALUES ($1, $2, $3, $4)`,
+      [req.userId, 'Document Deleted', `Document ${document.title} was safely removed.`, 'security']
+    );
+    console.log("Notification created");
     
     res.json({ message: 'Document deleted successfully' });
   } catch (error) {
     console.error('Delete Document Error:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error: ' + error.message });
   }
 });
 

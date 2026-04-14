@@ -6,7 +6,7 @@
  */
 (function () {
   const { GlassCard, Button, Icons, useToast } = window;
-  const { motion } = window.Motion;
+  const { motion, AnimatePresence } = window.Motion;
   const { Link } = window.Router;
 
   const { useState, useEffect } = window.React;
@@ -14,10 +14,20 @@
 
   const AdminDashboard = () => {
     const { showSuccess, showError } = useToast();
+    // Auth State
+    const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(sessionStorage.getItem('adminToken') === 'true');
+    const [adminCode, setAdminCode] = useState('');
+    const [authError, setAuthError] = useState('');
+    
+    // UI State
     const [users, setUsers] = useState([]);
     const [documents, setDocuments] = useState([]);
     const [stats, setStats] = useState({ totalUsers: 0, totalDocuments: 0, totalSize: 0, expiringDocuments: 0 });
     const [loading, setLoading] = useState(true);
+    
+    // Modal States
+    const [confirmDeleteUserId, setConfirmDeleteUserId] = useState(null);
+    const [confirmDeleteDocId, setConfirmDeleteDocId] = useState(null);
 
     const fetchData = async () => {
       try {
@@ -38,8 +48,25 @@
     };
 
     useEffect(() => {
-      fetchData();
-    }, []);
+      if (isAdminAuthenticated) {
+        fetchData();
+      } else {
+        setLoading(false);
+      }
+    }, [isAdminAuthenticated]);
+
+    const handleAdminLogin = async (e) => {
+      e.preventDefault();
+      setLoading(true);
+      try {
+        await api.post('/admin/verify', { code: adminCode });
+        sessionStorage.setItem('adminToken', 'true');
+        setIsAdminAuthenticated(true);
+      } catch (err) {
+        setAuthError('Invalid master admin code');
+        setLoading(false);
+      }
+    };
 
     const handleToggleUser = async (user) => {
       const endpoint = user.is_active ? `/admin/users/${user.id}/disable` : `/admin/users/${user.id}/enable`;
@@ -50,24 +77,24 @@
       } catch (e) { showError('Failed to toggle user status'); }
     };
 
-    const handleDeleteUser = async (id) => {
-      if (confirm('WARNING: Are you sure you want to PERMANENTLY delete this user and ALL their documents? This action cannot be undone.')) {
-        try {
-          await api.delete(`/admin/users/${id}`);
-          fetchData();
-          showSuccess('User completely deleted');
-        } catch (e) { showError('Failed to delete user'); }
-      }
+    const handleConfirmDeleteUser = async () => {
+      const id = confirmDeleteUserId;
+      setConfirmDeleteUserId(null);
+      try {
+        await api.delete(`/admin/users/${id}`);
+        fetchData();
+        showSuccess('User completely deleted');
+      } catch (e) { showError('Failed to delete user'); }
     };
 
-    const handleDeleteDoc = async (id) => {
-      if (confirm('Are you sure you want to permanently delete this document?')) {
-        try {
-          await api.delete(`/admin/documents/${id}`);
-          fetchData();
-          showSuccess('Document deleted');
-        } catch (e) { showError('Failed to delete document'); }
-      }
+    const handleConfirmDeleteDoc = async () => {
+      const id = confirmDeleteDocId;
+      setConfirmDeleteDocId(null);
+      try {
+        await api.delete(`/admin/documents/${id}`);
+        fetchData();
+        showSuccess('Document deleted');
+      } catch (e) { showError('Failed to delete document'); }
     };
 
     const formatBytes = (bytes) => {
@@ -77,6 +104,35 @@
     };
 
     if (loading) return <div className="min-h-screen bg-navy-900 text-white p-8">Loading administration panel...</div>;
+
+    if (!isAdminAuthenticated) {
+      return (
+        <div className="min-h-screen bg-mesh p-8 flex items-center justify-center">
+          <GlassCard className="p-8 max-w-sm w-full border-red-500/30">
+             <div className="flex justify-center mb-6 text-red-400">
+               <Icons.Shield size={48} />
+             </div>
+             <h2 className="text-2xl font-bold text-white text-center mb-2">Restricted Area</h2>
+             <p className="text-slate-400 text-center text-sm mb-6">Enter the master admin code to access system oversight.</p>
+             {authError && <p className="text-red-400 text-sm mb-4 text-center">{authError}</p>}
+             <form onSubmit={handleAdminLogin}>
+               <input
+                 type="password"
+                 required
+                 value={adminCode}
+                 onChange={e => setAdminCode(e.target.value)}
+                 className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-3 text-white text-center tracking-widest text-xl mb-4 focus:border-red-500 transition-colors"
+                 placeholder="••••••"
+               />
+               <Button type="submit" variant="danger" className="w-full bg-red-500 hover:bg-red-600 text-white border-transparent py-3">Access Console</Button>
+               <div className="mt-4 text-center">
+                 <Link className="text-slate-500 text-sm hover:text-white transition-colors" to="/dashboard">Return to Dashboard</Link>
+               </div>
+             </form>
+          </GlassCard>
+        </div>
+      );
+    }
 
     return (
       <div className="min-h-screen bg-mesh p-8">
@@ -148,7 +204,7 @@
                           {u.is_active ? 'Disable' : 'Enable'}
                         </Button>
                         <button 
-                          onClick={() => handleDeleteUser(u.id)} 
+                          onClick={() => setConfirmDeleteUserId(u.id)} 
                           className="text-slate-500 hover:text-red-400 transition-colors p-1 bg-white/5 hover:bg-white/10 rounded" 
                           title="Delete User"
                         >
@@ -186,7 +242,7 @@
                       <td className="p-4">{formatBytes(d.file_size)}</td>
                       <td className="p-4">{new Date(d.created_at).toLocaleDateString()}</td>
                       <td className="p-4">
-                        <button onClick={() => handleDeleteDoc(d.id)} className="text-red-400 hover:text-red-300 transition-colors p-2" title="Delete Document">
+                        <button onClick={() => setConfirmDeleteDocId(d.id)} className="text-red-400 hover:text-red-300 transition-colors p-2" title="Delete Document">
                           <Icons.Trash size={18} />
                         </button>
                       </td>
@@ -200,6 +256,44 @@
             </div>
           </GlassCard>
         </div>
+
+        {/* User Delete Modal */}
+        <AnimatePresence>
+          {confirmDeleteUserId && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-navy-900/90 backdrop-blur-sm" onClick={() => setConfirmDeleteUserId(null)} />
+               <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative z-10 w-full max-w-sm">
+                 <GlassCard className="p-6 border-red-500/30">
+                   <h3 className="text-xl font-bold text-white mb-2 flex items-center"><Icons.AlertTriangle className="text-red-400 mr-2" size={20}/> Terminate User?</h3>
+                   <p className="text-slate-400 text-sm mb-6">Are you sure you want to PERMANENTLY delete this user? ALL of their documents, reminders, and data will be permanently wiped. This action CANNOT be undone.</p>
+                   <div className="flex justify-end space-x-3">
+                     <Button variant="secondary" onClick={() => setConfirmDeleteUserId(null)}>Cancel</Button>
+                     <Button variant="danger" onClick={handleConfirmDeleteUser} className="bg-red-500 hover:bg-red-600 text-white border-transparent">Terminate User</Button>
+                   </div>
+                 </GlassCard>
+               </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Doc Delete Modal */}
+        <AnimatePresence>
+          {confirmDeleteDocId && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-navy-900/90 backdrop-blur-sm" onClick={() => setConfirmDeleteDocId(null)} />
+               <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative z-10 w-full max-w-sm">
+                 <GlassCard className="p-6 border-red-500/30">
+                   <h3 className="text-xl font-bold text-white mb-2 flex items-center"><Icons.AlertTriangle className="text-red-400 mr-2" size={20}/> Admin File Deletion</h3>
+                   <p className="text-slate-400 text-sm mb-6">Are you sure you want to force-delete this user's document? It will be removed from their vault permanently.</p>
+                   <div className="flex justify-end space-x-3">
+                     <Button variant="secondary" onClick={() => setConfirmDeleteDocId(null)}>Cancel</Button>
+                     <Button variant="danger" onClick={handleConfirmDeleteDoc} className="bg-red-500 hover:bg-red-600 text-white border-transparent">Force Delete</Button>
+                   </div>
+                 </GlassCard>
+               </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     );
   };

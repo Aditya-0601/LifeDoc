@@ -84,6 +84,13 @@ router.post('/', authenticate, async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
     `, [req.userId, document_id || null, finalTitle, deadline_date, category, description]);
 
+    // Create Notification
+    await pool.query(
+      `INSERT INTO notifications (user_id, title, description, type) VALUES ($1, $2, $3, $4)`,
+      [req.userId, 'Reminder created', `Reminder created for ${finalTitle}`, 'reminder']
+    );
+    console.log("Notification created");
+
     res.status(201).json({ message: 'Reminder created', reminder: rows[0] });
   } catch (error) {
     console.error('Create Reminder error:', error);

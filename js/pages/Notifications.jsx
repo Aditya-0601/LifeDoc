@@ -20,6 +20,7 @@
         setLoading(true);
         const res = await api.get('/notifications');
         const data = res.data.notifications || [];
+        console.log("Notifications:", data);
         
         // Removed automatic mark-as-read so user has manual control
 

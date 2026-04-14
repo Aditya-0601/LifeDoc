@@ -44,7 +44,7 @@
       setLoading(true);
       try {
         await verifyOtp(email, otp);
-        navigate(from, { replace: true });
+        navigate('/dashboard', { replace: true });
       } catch (err) {
         setError(err.response?.data?.error || 'OTP verification failed');
       } finally {

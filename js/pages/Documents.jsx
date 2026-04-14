@@ -20,6 +20,9 @@
     const [selectedDocument, setSelectedDocument] = useState(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [imgError, setImgError] = useState(false);
+    
+    // Deletion Modal State
+    const [confirmDeleteDocId, setConfirmDeleteDocId] = useState(null);
 
     useEffect(() => {
       setImgError(false);
@@ -57,16 +60,26 @@
       return () => clearTimeout(delayFn);
     }, [searchQuery, categoryFilter]);
 
-    const handleDelete = async (id, e) => {
+    const handleDeleteClick = (id, e) => {
       e.stopPropagation();
-      if(confirm('Are you sure you want to delete this document?')) {
-        try {
-          await api.delete(`/documents/${id}`);
-          fetchDocuments(); // refresh list
-          showSuccess('Document deleted successfully');
-        } catch (err) {
-          showError('Failed to delete document');
-        }
+      setConfirmDeleteDocId(id);
+    };
+
+    const confirmDelete = async () => {
+      const id = confirmDeleteDocId;
+      console.log("Deleting ID:", id);
+      setConfirmDeleteDocId(null);
+      // Optimistic UI Update
+      const originalDocs = [...docs];
+      setDocs(docs.filter(d => d.id !== id));
+      
+      try {
+        await api.delete(`/documents/${id}`);
+        showSuccess('Document deleted successfully');
+      } catch (err) {
+        console.error("Delete failed:", err);
+        showError(err.response?.data?.error || 'Failed to delete document');
+        setDocs(originalDocs); // Rollback on error
       }
     };
 
@@ -217,13 +230,15 @@
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   </div>
-                  <div 
-                    className="hover:text-red-400 cursor-pointer p-1 bg-navy-900/50 rounded"
-                    onClick={(e) => handleDelete(doc.id, e)}
-                    title="Delete Document"
-                  >
-                    <Icons.Trash size={16} />
-                  </div>
+                  {!doc.isShared && (
+                    <div 
+                      className="hover:text-red-400 cursor-pointer p-1 bg-navy-900/50 rounded"
+                      onClick={(e) => handleDeleteClick(doc.id, e)}
+                      title="Delete Document"
+                    >
+                      <Icons.Trash size={16} />
+                    </div>
+                  )}
                 </div>
                 
                 <div className="cursor-pointer" onClick={(e) => handlePreview(doc, e)}>
@@ -234,8 +249,14 @@
                   }`}>
                     <Icons.FileText size={20} />
                   </div>
-                  <h3 className="font-semibold text-white/90 text-sm truncate mb-1" title={doc.name}>{doc.name}</h3>
-                  <p className="text-xs font-medium text-cyan-400 mb-3 capitalize">{doc.category || 'Other'}</p>
+                  <h3 className="font-semibold text-white/90 text-sm truncate mb-1" title={doc.name}>
+                    {doc.isShared && <span className="mr-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-400 align-middle">SHARED</span>}
+                    {doc.name}
+                  </h3>
+                  <p className="text-xs font-medium text-cyan-400 mb-3 capitalize">
+                    {doc.category || 'Other'}
+                    {doc.isShared && <span className="ml-1 text-slate-500">by {doc.ownerName}</span>}
+                  </p>
                 </div>
 
                 <div className="mt-auto pt-3 border-t border-white/5 flex justify-between items-center text-[11px] text-slate-500 font-medium tracking-wide pointer-events-none">
@@ -341,6 +362,23 @@
                   </div>
                 </GlassCard>
               </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {confirmDeleteDocId && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-navy-900/90 backdrop-blur-sm" onClick={() => setConfirmDeleteDocId(null)} />
+               <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative z-10 w-full max-w-sm">
+                 <GlassCard className="p-6 border-red-500/30">
+                   <h3 className="text-xl font-bold text-white mb-2 flex items-center"><Icons.AlertTriangle className="text-red-400 mr-2" size={20}/> Delete Document?</h3>
+                   <p className="text-slate-400 text-sm mb-6">Are you sure you want to permanently delete this document? This action cannot be undone.</p>
+                   <div className="flex justify-end space-x-3">
+                     <Button variant="secondary" onClick={() => setConfirmDeleteDocId(null)}>Cancel</Button>
+                     <Button variant="danger" onClick={confirmDelete} className="bg-red-500 hover:bg-red-600 text-white border-transparent">Delete</Button>
+                   </div>
+                 </GlassCard>
+               </motion.div>
             </div>
           )}
         </AnimatePresence>
