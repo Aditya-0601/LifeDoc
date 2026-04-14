@@ -80,7 +80,13 @@
 
             {error && (
               <div className="mb-4 bg-red-500/10 border border-red-500/50 rounded-lg p-3 text-red-400 text-sm">
-                {error}
+                <div className="flex items-center mb-1">
+                  <Icons.AlertCircle size={14} className="mr-2" />
+                  <strong>{error}</strong>
+                </div>
+                <p className="text-[11px] opacity-80 leading-tight mt-1">
+                  Note: If the system was recently reset, your old account may no longer exist. Try <Link to="/register" className="underline hover:text-white">registering a new one</Link>.
+                </p>
               </div>
             )}
 

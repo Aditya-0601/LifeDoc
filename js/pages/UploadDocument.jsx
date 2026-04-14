@@ -99,8 +99,13 @@ const allowedTypes = [
         </div>
 
         {error && (
-            <div className="mb-4 bg-red-500/10 border border-red-500/50 rounded-lg p-3 text-red-400 text-sm">
-            {error}
+            <div className="mb-6 bg-red-500/10 border border-red-500/50 rounded-xl p-4 text-red-400 text-sm flex items-start">
+              <Icons.AlertCircle size={18} className="mr-3 shrink-0" />
+              <div>
+                <p className="font-bold mb-1">Upload failed</p>
+                <p className="opacity-80">{error}</p>
+                <p className="text-[10px] mt-2 text-slate-500 italic">Tip: Ensure you are logged in and the server is running on port 5000.</p>
+              </div>
             </div>
         )}
 

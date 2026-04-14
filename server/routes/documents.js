@@ -18,11 +18,23 @@ if (!fs.existsSync(uploadsDir)) {
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const userDir = path.join(uploadsDir, req.userId.toString());
-    if (!fs.existsSync(userDir)) {
-      fs.mkdirSync(userDir, { recursive: true });
+    // Check authentication early
+    if (!req.userId) {
+      console.error('❌ Multer Error: No userId on request object');
+      return cb(new Error('Authentication failed: No User ID found.'));
     }
-    cb(null, userDir);
+
+    try {
+      const userDir = path.join(uploadsDir, req.userId.toString());
+      if (!fs.existsSync(userDir)) {
+        console.log(`📁 Creating user directory: ${userDir}`);
+        fs.mkdirSync(userDir, { recursive: true });
+      }
+      cb(null, userDir);
+    } catch (err) {
+      console.error('❌ Multer Directory Error:', err);
+      cb(new Error('Internal Server Error: Failed to prepare storage directory.'));
+    }
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -96,61 +108,58 @@ router.post('/upload', authenticate, (req, res) => {
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
-    const { title, category, description, expiry_date } = req.body;
     const pool = getDb();
-
     let finalFilePath = req.file.path;
     let finalSize = req.file.size;
     let detectedExpiryDate = null;
     let isImage = false;
 
-    // Check if the file is an image
-    const ext = path.extname(req.file.originalname).toLowerCase();
-    if (['.jpeg', '.jpg', '.png'].includes(ext)) {
-      isImage = true;
-      try {
-        // 1. Image Compression (Optimization)
-        const compressedPath = req.file.path.replace(ext, `-compressed${ext}`);
-        await sharp(req.file.path)
-          .jpeg({ quality: 70 }) // compress image
-          .toFile(compressedPath);
+    // --- Smart Processing: OCR & Compression ---
+    // Wrapped in try-catch so that if heavy dependencies fail, the upload still succeeds
+    try {
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      
+      if (['.jpeg', '.jpg', '.png'].includes(ext)) {
+        isImage = true;
+        try {
+          console.log(`🖼️ Optimizing image: ${req.file.originalname}`);
+          const compressedPath = req.file.path.replace(ext, `-compressed${ext}`);
+          await sharp(req.file.path)
+            .jpeg({ quality: 75 })
+            .toFile(compressedPath);
 
-        // Replace original with compressed version
-        fs.unlinkSync(req.file.path);
-        finalFilePath = compressedPath;
-        const stats = fs.statSync(compressedPath);
-        finalSize = stats.size;
+          // Swap references to use compressed file
+          if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+          finalFilePath = compressedPath;
+          const stats = fs.statSync(compressedPath);
+          finalSize = stats.size;
+          req.file.path = compressedPath;
+          req.file.filename = path.basename(compressedPath);
 
-        // Update the express req file references to reflect the new file
-        req.file.path = compressedPath;
-        req.file.filename = path.basename(compressedPath);
-
-        // 2. OCR for Smart Expiry Detection
-        console.log(`Running OCR on uploaded document: ${req.file.originalname}...`);
-        const { data: { text } } = await Tesseract.recognize(compressedPath, 'eng');
-        detectedExpiryDate = extractDateFromText(text);
-        if (detectedExpiryDate) {
-          console.log(`✅ OCR detected potential date: ${detectedExpiryDate}`);
+          console.log(`🔍 Running OCR on: ${req.file.originalname}`);
+          const { data: { text } } = await Tesseract.recognize(compressedPath, 'eng');
+          detectedExpiryDate = extractDateFromText(text);
+        } catch (procErr) {
+          console.warn('⚠️ Image processing (Sharp/OCR) failed, continuing with original:', procErr.message);
         }
-      } catch (err) {
-        console.error('Error during compression or OCR:', err);
-        // Fallback to storing uncompressed image if it fails
-      }
-    } else if (ext === '.pdf') {
-      try {
-        console.log(`Running PDF parsing on uploaded document: ${req.file.originalname}...`);
-        const dataBuffer = fs.readFileSync(req.file.path);
-        const data = await pdfParse(dataBuffer);
-        detectedExpiryDate = extractDateFromText(data.text);
-        if (detectedExpiryDate) {
-          console.log(`✅ PDF parse detected potential date: ${detectedExpiryDate}`);
+      } else if (ext === '.pdf') {
+        try {
+          console.log(`📑 Parsing PDF text: ${req.file.originalname}`);
+          const dataBuffer = fs.readFileSync(req.file.path);
+          const data = await pdfParse(dataBuffer);
+          detectedExpiryDate = extractDateFromText(data.text);
+        } catch (procErr) {
+          console.warn('⚠️ PDF parsing failed, continuing:', procErr.message);
         }
-      } catch (err) {
-        console.error('Error during PDF parsing:', err);
       }
+    } catch (outerProcErr) {
+      console.error('❌ Smart processing failed unexpectedly:', outerProcErr);
     }
+    // --- End Smart Processing ---
 
     const relativePath = `/uploads/${req.userId}/${req.file.filename}`;
+
+    const { title, category, description, expiry_date } = req.body;
 
     try {
       const result = await pool.query(

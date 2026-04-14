@@ -124,15 +124,17 @@
         );
       } else if (isPdf) {
         return (
-          <div className="flex flex-col items-center justify-center h-full w-full min-h-[350px] p-8 text-center">
-            <div className="w-24 h-24 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mb-6 shadow-[inset_0_0_20px_rgba(239,68,68,0.1)] border border-red-500/20">
-              <Icons.FileText size={48} />
+          <div className="flex flex-col items-center justify-center h-full w-full min-h-[500px] bg-navy-900/50 rounded-xl overflow-hidden border border-white/10 group">
+            <iframe 
+              src={`${selectedDocument.fileUrl}#toolbar=0&navpanes=0&scrollbar=0`} 
+              className="w-full h-[500px] border-none"
+              title="PDF Preview"
+            />
+            <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-navy-900 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+               <Button variant="secondary" onClick={(e) => handleDownload(selectedDocument, e)} className="w-full flex items-center justify-center backdrop-blur-md">
+                 <Icons.FileText size={16} className="mr-2" /> Open Full Document
+               </Button>
             </div>
-            <h3 className="text-2xl font-display font-bold text-white mb-2">PDF Document</h3>
-            <p className="text-slate-400 text-sm mb-6">PDF files are securely stored. For full viewing experience, please download the file.</p>
-            <Button variant="secondary" onClick={(e) => handleDownload(selectedDocument, e)} className="flex items-center">
-              <Icons.FileText size={16} className="mr-2" /> Download to View
-            </Button>
           </div>
         );
       } else {
