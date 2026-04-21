@@ -12,9 +12,11 @@ const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString()
 // Register
 router.post('/register', async (req, res) => {
   try {
+    console.log('Register request body:', req.body);
     const { email, password, name } = req.body;
 
     if (!email || !password || !name) {
+      console.log('Missing required fields:', { email: !!email, password: !!password, name: !!name });
       return res.status(400).json({ error: 'Email, password, and name are required' });
     }
 
