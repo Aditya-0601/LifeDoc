@@ -9,6 +9,13 @@ const router = express.Router();
 // Helper to generate a 6 digit OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
+// Test endpoint
+router.post('/test', (req, res) => {
+  console.log('Test endpoint - body:', req.body);
+  console.log('Test endpoint - headers:', req.headers);
+  res.json({ success: true, body: req.body });
+});
+
 // Register
 router.post('/register', async (req, res) => {
   try {
@@ -18,6 +25,16 @@ router.post('/register', async (req, res) => {
     if (!email || !password || !name) {
       console.log('Missing required fields:', { email: !!email, password: !!password, name: !!name });
       return res.status(400).json({ error: 'Email, password, and name are required' });
+    }
+
+    // Test database connection
+    try {
+      const pool = getDb();
+      await pool.query('SELECT 1');
+      console.log('Database connection OK');
+    } catch (dbError) {
+      console.error('Database connection failed:', dbError);
+      return res.status(500).json({ error: 'Database connection failed' });
     }
 
     const pool = getDb();
