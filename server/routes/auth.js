@@ -27,16 +27,6 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Email, password, and name are required' });
     }
 
-    // Test database connection
-    try {
-      const pool = getDb();
-      await pool.query('SELECT 1');
-      console.log('Database connection OK');
-    } catch (dbError) {
-      console.error('Database connection failed:', dbError);
-      return res.status(500).json({ error: 'Database connection failed' });
-    }
-
     const pool = getDb();
     const hashedPassword = await bcrypt.hash(password, 10);
 
