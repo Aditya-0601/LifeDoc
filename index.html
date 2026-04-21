@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LifeDoc - Intelligent Document Vault</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
+    rel="stylesheet">
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Plus Jakarta Sans', 'sans-serif'],
+          },
+          colors: {
+            navy: {
+              900: '#0A0F1C',
+              800: '#111827',
+              700: '#1F2937'
+            },
+            cyan: {
+              400: '#22d3ee',
+              500: '#06b6d4',
+              glow: '#00F0FF'
+            }
+          },
+          animation: {
+            'blob': 'blob 7s infinite',
+          },
+          keyframes: {
+            blob: {
+              '0%': { transform: 'translate(0px, 0px) scale(1)' },
+              '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+              '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+              '100%': { transform: 'translate(0px, 0px) scale(1)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+
+  <!-- React Router -->
+  <script src="https://unpkg.com/@remix-run/router@1.16.1/dist/router.umd.min.js"></script>
+  <script src="https://unpkg.com/react-router@6.23.1/dist/umd/react-router.development.js"></script>
+  <script src="https://unpkg.com/react-router-dom@6.23.1/dist/umd/react-router-dom.development.js"></script>
+
+  <!-- Axios -->
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+  <!-- Recharts & PropTypes -->
+  <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
+  <script src="https://unpkg.com/recharts/umd/Recharts.js" crossorigin></script>
+
+  <!-- Framer Motion -->
+  <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+
+<body class="bg-navy-900 text-slate-200 antialiased selection:bg-cyan-500/30 selection:text-cyan-200 min-h-screen">
+
+  <!-- Root entry for React -->
+  <div id="root"></div>
+
+  <!-- Provide dependencies to components -->
+  <script>
+    window.Router = window.ReactRouterDOM;
+    window.Motion = window.Motion || window.framerMotion;
+  </script>
+
+  <!-- UI Components -->
+  <script type="text/babel" src="js/components/ui/Icons.jsx"></script>
+  <script type="text/babel" src="js/components/ui/GlassCard.jsx"></script>
+  <script type="text/babel" src="js/components/ui/Button.jsx"></script>
+  <script type="text/babel" src="js/components/Sidebar.jsx"></script>
+  <script type="text/babel" src="js/components/Hero.jsx"></script>
+  <script type="text/babel" src="js/components/Features.jsx"></script>
+
+  <!-- Core Services & Context -->
+  <script type="text/babel" src="js/services/api.js"></script>
+  <script type="text/babel" src="js/context/ToastContext.jsx"></script>
+  <script type="text/babel" src="js/context/AuthContext.jsx"></script>
+
+  <!-- Pages -->
+  <script type="text/babel" src="js/pages/Landing.jsx"></script>
+  <script type="text/babel" src="js/pages/Login.jsx"></script>
+  <script type="text/babel" src="js/pages/Register.jsx"></script>
+  <script type="text/babel" src="js/pages/Dashboard.jsx"></script>
+  <script type="text/babel" src="js/pages/Documents.jsx"></script>
+  <script type="text/babel" src="js/pages/UploadDocument.jsx"></script>
+  <script type="text/babel" src="js/pages/Reminders.jsx"></script>
+  <script type="text/babel" src="js/pages/FamilyAccess.jsx"></script>
+  <script type="text/babel" src="js/pages/Notifications.jsx"></script>
+  <script type="text/babel" src="js/pages/AdminDashboard.jsx"></script>
+  <script type="text/babel" src="js/pages/Profile.jsx"></script>
+
+  <!-- App Entry Point -->
+  <script type="text/babel" src="js/App.jsx"></script>
+
+</body>
+
+</html>
