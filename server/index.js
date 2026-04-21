@@ -17,7 +17,7 @@ if (!fs.existsSync(uploadsDir)) {
 
 // Middleware
 app.use(cors({ 
-  origin: ['https://life-doc-three.vercel.app', 'http://localhost:3000'],
+  origin: true,
   credentials: true
 }));
 app.use(express.json());
