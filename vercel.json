@@ -1,19 +1,17 @@
 {
-  "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "index.html",
-      "use": "@vercel/static"
+      "source": "/api/:path*",
+      "destination": "https://lifedoc-backend.onrender.com/api/:path*"
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": "https://lifedoc-backend.onrender.com/uploads/:path*"
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "https://lifedoc-backend.onrender.com/api/$1"
-    },
-    {
-      "src": "/uploads/(.*)",
-      "dest": "https://lifedoc-backend.onrender.com/uploads/$1"
+      "handle": "filesystem"
     },
     {
       "src": "/(.*)",
