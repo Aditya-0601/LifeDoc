@@ -16,7 +16,7 @@
     const { showSuccess, showError } = useToast();
     const { user: currentUser } = useAuth();
     // Auth State
-    const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(sessionStorage.getItem('adminToken') === 'true');
+    const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(!!sessionStorage.getItem('adminPasscode'));
     const [adminCode, setAdminCode] = useState('');
     const [authError, setAuthError] = useState('');
     
@@ -65,11 +65,11 @@
       e.preventDefault();
       setLoading(true);
       try {
-        await api.post('/admin/verify', { code: adminCode });
-        sessionStorage.setItem('adminToken', 'true');
+        await api.post('/admin/verify', { passcode: adminCode });
+        sessionStorage.setItem('adminPasscode', adminCode);
         setIsAdminAuthenticated(true);
       } catch (err) {
-        setAuthError('Invalid master admin code');
+        setAuthError('Invalid passcode');
         setLoading(false);
       }
     };
@@ -118,8 +118,8 @@
              <div className="flex justify-center mb-6 text-red-400">
                <Icons.Shield size={48} />
              </div>
-             <h2 className="text-2xl font-bold text-white text-center mb-2">Restricted Area</h2>
-             <p className="text-slate-400 text-center text-sm mb-6">Enter the master admin code to access system oversight.</p>
+             <h2 className="text-2xl font-bold text-white text-center mb-2">Admin Access Required</h2>
+             <p className="text-slate-400 text-center text-sm mb-6">Enter Admin Passcode to access system oversight.</p>
              {authError && <p className="text-red-400 text-sm mb-4 text-center">{authError}</p>}
              <form onSubmit={handleAdminLogin}>
                <input
@@ -130,7 +130,7 @@
                  className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-3 text-white text-center tracking-widest text-xl mb-4 focus:border-red-500 transition-colors"
                  placeholder="••••••"
                />
-               <Button type="submit" variant="danger" className="w-full bg-red-500 hover:bg-red-600 text-white border-transparent py-3">Access Console</Button>
+               <Button type="submit" variant="danger" className="w-full bg-red-500 hover:bg-red-600 text-white border-transparent py-3">Unlock</Button>
                <div className="mt-4 text-center">
                  <Link className="text-slate-500 text-sm hover:text-white transition-colors" to="/dashboard">Return to Dashboard</Link>
                </div>

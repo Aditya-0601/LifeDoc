@@ -102,6 +102,7 @@
     }
 
     const [documents, setDocuments] = useState([]);
+    const [invites, setInvites] = useState([]);
     const [loading, setLoading] = useState(true);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
 
@@ -109,15 +110,25 @@
       const fetchData = async () => {
         try {
           const token = localStorage.getItem('token');
-          const res = await fetch('http://localhost:5000/api/documents', {
+          // Fetch Documents
+          const resDocs = await fetch('http://localhost:5000/api/documents', {
             headers: { 'Authorization': `Bearer ${token}` }
           });
-          const data = await res.json();
-          if (res.ok && data.documents) {
-            setDocuments(data.documents);
+          const dataDocs = await resDocs.json();
+          if (resDocs.ok && dataDocs.documents) {
+            setDocuments(dataDocs.documents);
+          }
+
+          // Fetch Pending Invitations
+          const resInvites = await fetch('http://localhost:5000/api/family-access/invitations', {
+             headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const dataInvites = await resInvites.json();
+          if (resInvites.ok && dataInvites.invitations) {
+            setInvites(dataInvites.invitations);
           }
         } catch (error) {
-          console.error("Failed to fetch documents:", error);
+          console.error("Failed to fetch dashboard data:", error);
         } finally {
           setLoading(false);
         }
@@ -139,6 +150,29 @@
         animate={{ opacity: 1, y: 0 }}
         className="space-y-8"
       >
+        {invites.length > 0 && (
+          <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4 flex items-center justify-between shadow-lg shadow-indigo-500/5">
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                <Icons.Users size={20} />
+              </div>
+              <div>
+                <h3 className="text-white font-semibold flex items-center">
+                  You have a family access request!
+                  <span className="ml-2 bg-indigo-500 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full animate-pulse">{invites.length} NEW</span>
+                </h3>
+                <p className="text-slate-400 text-sm">Someone wants to designate you as their emergency contact.</p>
+              </div>
+            </div>
+            <button 
+              className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white font-semibold rounded-lg shadow-md transition-colors text-sm"
+              onClick={() => window.location.hash = '#/dashboard/family'}
+            >
+              Review Request
+            </button>
+          </div>
+        )}
+
         <header className="flex justify-between items-center bg-navy-800/40 p-6 rounded-2xl border border-white/5 backdrop-blur-md">
           <div>
             <h1 className="text-2xl font-display font-bold text-white tracking-tight">Welcome, {user.name?.split(' ')[0] || 'User'}</h1>

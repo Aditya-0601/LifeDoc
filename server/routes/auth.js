@@ -63,6 +63,7 @@ router.post('/register', async (req, res) => {
 
 // Step 1: Login (Password verification + sending OTP)
 router.post('/login', async (req, res) => {
+  console.log("Login request received");
   try {
     const { email, password } = req.body;
 
@@ -74,17 +75,22 @@ router.post('/login', async (req, res) => {
     const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     const user = rows[0];
 
+    console.log("User:", user);
+
     if (!user) {
       return res.status(401).json({ error: 'Account not found for this email' });
     }
 
     const isValidPassword = await bcrypt.compare(password, user.password);
+    console.log("Password match:", isValidPassword);
+
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Incorrect password' });
     }
 
     // Generate and save OTP
     const otp = generateOTP();
+    console.log("Generated OTP:", otp);
     const otpExpiry = new Date(Date.now() + 10 * 60000); // 10 minutes
 
     await pool.query(
@@ -93,10 +99,15 @@ router.post('/login', async (req, res) => {
     );
 
     // Send OTP via email
-    await sendOTP(user.email, otp);
+    console.log("Sending OTP to:", user.email);
+    try {
+      await sendOTP(user.email, otp);
+    } catch (mailError) {
+      console.error("Mail error during login (fallback to terminal):", mailError.message);
+    }
 
     res.json({
-      message: 'OTP sent to email. Please verify to complete login.',
+      message: 'OTP processed. Please verify to complete login.',
       requiresOTP: true,
       email: user.email
     });
@@ -170,7 +181,13 @@ router.post('/forgot-password', async (req, res) => {
       [otp, otpExpiry, user.id]
     );
 
-    await sendOTP(user.email, otp);
+    console.log("Forgot Password - Generated OTP:", otp);
+    console.log("Sending OTP to:", user.email);
+    try {
+      await sendOTP(user.email, otp);
+    } catch (mailError) {
+      console.error("Mail error during forgot password (fallback to terminal):", mailError.message);
+    }
 
     res.json({ message: 'If that email exists, an OTP has been sent.' });
   } catch (error) {

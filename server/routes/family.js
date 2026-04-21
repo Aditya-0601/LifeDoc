@@ -14,6 +14,13 @@ router.post('/request', authenticate, async (req, res) => {
     }
 
     const pool = getDb();
+    
+    // Ghost Invite Protection (Option A)
+    const userCheck = await pool.query('SELECT id FROM users WHERE email = $1', [family_member_email]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'This user is not registered' });
+    }
+
     const access_code = uuidv4();
 
     const { rows } = await pool.query(

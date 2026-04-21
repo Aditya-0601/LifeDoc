@@ -3,18 +3,28 @@ const { authenticate } = require('../middleware/auth');
 const { getDb } = require('../config/database');
 const router = express.Router();
 
-router.post('/verify', authenticate, (req, res) => {
-  const { code } = req.body;
-  const adminSecret = process.env.ADMIN_SECRET || '123456';
+const requireAdmin = (req, res, next) => {
+  const codeHeader = req.headers['x-admin-passcode'];
+  const adminSecret = process.env.ADMIN_PASSCODE || process.env.ADMIN_SECRET || '123456';
   
-  if (code === adminSecret) {
+  if (codeHeader === adminSecret || (req.user && req.user.role === 'admin')) {
+    return next();
+  }
+  return res.status(401).json({ error: 'Unauthorized: Admin passcode required' });
+};
+
+router.post('/verify', authenticate, (req, res) => {
+  const { passcode } = req.body;
+  const adminSecret = process.env.ADMIN_PASSCODE || process.env.ADMIN_SECRET || '123456';
+  
+  if (passcode === adminSecret) {
     res.json({ success: true });
   } else {
-    res.status(403).json({ error: 'Invalid admin code' });
+    res.status(401).json({ error: 'Invalid admin code' });
   }
 });
 
-router.get('/users', authenticate, async (req, res) => {
+router.get('/users', authenticate, requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
     const { rows } = await pool.query('SELECT id, email, name, is_active, created_at FROM users ORDER BY created_at DESC');
@@ -24,7 +34,7 @@ router.get('/users', authenticate, async (req, res) => {
   }
 });
 
-router.put('/users/:id/disable', authenticate, async (req, res) => {
+router.put('/users/:id/disable', authenticate, requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
     await pool.query('UPDATE users SET is_active = 0 WHERE id = $1', [req.params.id]);
@@ -34,7 +44,7 @@ router.put('/users/:id/disable', authenticate, async (req, res) => {
   }
 });
 
-router.put('/users/:id/enable', authenticate, async (req, res) => {
+router.put('/users/:id/enable', authenticate, requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
     await pool.query('UPDATE users SET is_active = 1 WHERE id = $1', [req.params.id]);
@@ -44,7 +54,7 @@ router.put('/users/:id/enable', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/users/:id', authenticate, async (req, res) => {
+router.delete('/users/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
     const targetUserId = parseInt(req.params.id, 10);
@@ -76,7 +86,7 @@ router.delete('/users/:id', authenticate, async (req, res) => {
   }
 });
 
-router.get('/documents', authenticate, async (req, res) => {
+router.get('/documents', authenticate, requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
     const { rows } = await pool.query(`
@@ -91,7 +101,7 @@ router.get('/documents', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/documents/:id', authenticate, async (req, res) => {
+router.delete('/documents/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
     
@@ -106,7 +116,7 @@ router.delete('/documents/:id', authenticate, async (req, res) => {
   }
 });
 
-router.get('/stats', authenticate, async (req, res) => {
+router.get('/stats', authenticate, requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
     const [users, docs, deadlines] = await Promise.all([

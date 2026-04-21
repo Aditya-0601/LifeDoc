@@ -175,7 +175,10 @@
           </div>
           
           <h3 className="font-semibold text-white/90 text-sm truncate mb-1" title={doc.name}>{doc.name}</h3>
-          <p className="text-xs font-medium text-cyan-400 mb-3">{doc.category}</p>
+          <div className="mb-3">
+             <p className="text-xs font-medium text-cyan-400 capitalize">{doc.category || 'Other'}</p>
+             {isShared && <p className="text-[10px] text-slate-400 mt-1 truncate" title={doc.sharedByEmail}>Shared by: <span className="font-semibold text-slate-300">{doc.sharedByName}</span> ({doc.sharedByEmail})</p>}
+          </div>
 
           <div className="mt-auto pt-3 border-t border-white/5 flex justify-between items-center text-[11px] text-slate-500 font-medium tracking-wide">
             <span>{dateStr}</span>

@@ -92,7 +92,10 @@ const mapDocument = (req, doc) => {
     isShared: !!doc.is_shared,
     isLocked: !!doc.is_locked,
     isFavorite: !!doc.is_favorite,
-    ownerName: doc.owner_name
+    ownerName: doc.owner_name,
+    sharedByUserId: doc.is_shared ? doc.user_id : null,
+    sharedByName: doc.is_shared ? doc.owner_name : null,
+    sharedByEmail: doc.is_shared ? doc.owner_email : null
   };
 };
 
@@ -257,7 +260,8 @@ router.get('/search', authenticate, async (req, res) => {
     const { rows } = await pool.query(
       `SELECT d.*, 
               CASE WHEN d.user_id = $1 THEN false ELSE true END as is_shared,
-              u.name as owner_name
+              u.name as owner_name,
+              u.email as owner_email
        FROM documents d
        LEFT JOIN users u ON d.user_id = u.id
        WHERE (d.user_id = $1 OR d.user_id IN (
@@ -284,7 +288,8 @@ router.get('/', authenticate, async (req, res) => {
     let query = `
       SELECT d.*, 
              CASE WHEN d.user_id = $1 THEN false ELSE true END as is_shared,
-             u.name as owner_name
+             u.name as owner_name,
+             u.email as owner_email
       FROM documents d
       LEFT JOIN users u ON d.user_id = u.id
       WHERE (d.user_id = $1 OR d.user_id IN (
