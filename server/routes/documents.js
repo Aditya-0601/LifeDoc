@@ -3,13 +3,35 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const sharp = require('sharp');
-const Tesseract = require('tesseract.js');
-const pdfParse = require('pdf-parse');
 const bcrypt = require('bcryptjs');
 const { authenticate } = require('../middleware/auth');
 const { getDb } = require('../config/database');
 const router = express.Router();
+
+const optionalDependencies = {};
+
+const getOptionalDependency = (name) => {
+  if (Object.prototype.hasOwnProperty.call(optionalDependencies, name)) {
+    return optionalDependencies[name];
+  }
+
+  try {
+    optionalDependencies[name] = require(name);
+  } catch (error) {
+    console.warn(`Optional dependency "${name}" is unavailable: ${error.message}`);
+    optionalDependencies[name] = null;
+  }
+
+  return optionalDependencies[name];
+};
+
+const getRequestBaseUrl = (req) => {
+  const forwardedProto = req.get('x-forwarded-proto');
+  const forwardedHost = req.get('x-forwarded-host');
+  const protocol = forwardedProto || req.protocol;
+  const host = forwardedHost || req.get('host');
+  return `${protocol}://${host}`;
+};
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '../../uploads');
@@ -78,7 +100,7 @@ const extractDateFromText = (text) => {
 };
 
 const mapDocument = (req, doc) => {
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const baseUrl = getRequestBaseUrl(req);
   return {
     ...doc, // Backward compatibility
     id: doc.id,
@@ -131,6 +153,11 @@ router.post('/upload', authenticate, (req, res) => {
           isImage = true;
           try {
             console.log(`🖼️ Optimizing image: ${req.file.originalname}`);
+            const sharp = getOptionalDependency('sharp');
+            const Tesseract = getOptionalDependency('tesseract.js');
+            if (!sharp || !Tesseract) {
+              throw new Error('Image optimization dependencies are not installed');
+            }
             const compressedPath = req.file.path.replace(ext, `-compressed${ext}`);
             await sharp(req.file.path)
               .jpeg({ quality: 75 })
@@ -153,6 +180,10 @@ router.post('/upload', authenticate, (req, res) => {
         } else if (ext === '.pdf') {
           try {
             console.log(`📑 Parsing PDF text: ${req.file.originalname}`);
+            const pdfParse = getOptionalDependency('pdf-parse');
+            if (!pdfParse) {
+              throw new Error('PDF parsing dependency is not installed');
+            }
             const dataBuffer = fs.readFileSync(req.file.path);
             const data = await pdfParse(dataBuffer);
             detectedExpiryDate = extractDateFromText(data.text);
@@ -653,6 +684,11 @@ router.post('/:id/versions', authenticate, (req, res) => {
         if (['.jpeg', '.jpg', '.png'].includes(ext)) {
           isImage = true;
           try {
+            const sharp = getOptionalDependency('sharp');
+            const Tesseract = getOptionalDependency('tesseract.js');
+            if (!sharp || !Tesseract) {
+              throw new Error('Image optimization dependencies are not installed');
+            }
             const compressedPath = req.file.path.replace(ext, `-compressed${ext}`);
             await sharp(req.file.path).jpeg({ quality: 75 }).toFile(compressedPath);
             if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
@@ -668,6 +704,10 @@ router.post('/:id/versions', authenticate, (req, res) => {
           }
         } else if (ext === '.pdf') {
           try {
+            const pdfParse = getOptionalDependency('pdf-parse');
+            if (!pdfParse) {
+              throw new Error('PDF parsing dependency is not installed');
+            }
             const dataBuffer = fs.readFileSync(req.file.path);
             const data = await pdfParse(dataBuffer);
             detectedExpiryDate = extractDateFromText(data.text);

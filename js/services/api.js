@@ -7,9 +7,12 @@
 (function () {
   const host = window.location.hostname;
   const isLocalHost = host === 'localhost' || host === '127.0.0.1';
-  const baseURL = isLocalHost
-    ? 'http://localhost:5000/api'
-    : 'https://lifedoc-backend.onrender.com/api';
+  const configuredBaseUrl = window.LIFEDOC_API_BASE_URL || localStorage.getItem('lifedoc.apiBaseUrl');
+  const baseURL = configuredBaseUrl || (
+    isLocalHost
+      ? 'http://localhost:5000/api'
+      : `${window.location.origin}/api`
+  );
 
   const api = window.axios.create({
     baseURL,
