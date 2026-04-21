@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const sharp = require('sharp');
 const Tesseract = require('tesseract.js');
 const pdfParse = require('pdf-parse');
+const bcrypt = require('bcryptjs');
 const { authenticate } = require('../middleware/auth');
 const { getDb } = require('../config/database');
 const router = express.Router();
@@ -89,6 +90,7 @@ const mapDocument = (req, doc) => {
     fileType: path.extname(doc.file_name || '').toLowerCase().replace('.', '') || 'unknown',
     fileUrl: `${baseUrl}${doc.file_path}`,
     isShared: !!doc.is_shared,
+    isLocked: !!doc.is_locked,
     isFavorite: !!doc.is_favorite,
     ownerName: doc.owner_name
   };
@@ -111,132 +113,132 @@ router.post('/upload', authenticate, (req, res) => {
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
-    const pool = getDb();
-    let finalFilePath = req.file.path;
-    let finalSize = req.file.size;
-    let detectedExpiryDate = null;
-    let isImage = false;
+      const pool = getDb();
+      let finalFilePath = req.file.path;
+      let finalSize = req.file.size;
+      let detectedExpiryDate = null;
+      let isImage = false;
 
-    // --- Smart Processing: OCR & Compression ---
-    // Wrapped in try-catch so that if heavy dependencies fail, the upload still succeeds
-    try {
-      const ext = path.extname(req.file.originalname).toLowerCase();
-      
-      if (['.jpeg', '.jpg', '.png'].includes(ext)) {
-        isImage = true;
-        try {
-          console.log(`🖼️ Optimizing image: ${req.file.originalname}`);
-          const compressedPath = req.file.path.replace(ext, `-compressed${ext}`);
-          await sharp(req.file.path)
-            .jpeg({ quality: 75 })
-            .toFile(compressedPath);
+      // --- Smart Processing: OCR & Compression ---
+      // Wrapped in try-catch so that if heavy dependencies fail, the upload still succeeds
+      try {
+        const ext = path.extname(req.file.originalname).toLowerCase();
 
-          // Swap references to use compressed file
-          if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-          finalFilePath = compressedPath;
-          const stats = fs.statSync(compressedPath);
-          finalSize = stats.size;
-          req.file.path = compressedPath;
-          req.file.filename = path.basename(compressedPath);
+        if (['.jpeg', '.jpg', '.png'].includes(ext)) {
+          isImage = true;
+          try {
+            console.log(`🖼️ Optimizing image: ${req.file.originalname}`);
+            const compressedPath = req.file.path.replace(ext, `-compressed${ext}`);
+            await sharp(req.file.path)
+              .jpeg({ quality: 75 })
+              .toFile(compressedPath);
 
-          console.log(`🔍 Running OCR on: ${req.file.originalname}`);
-          const { data: { text } } = await Tesseract.recognize(compressedPath, 'eng');
-          detectedExpiryDate = extractDateFromText(text);
-        } catch (procErr) {
-          console.warn('⚠️ Image processing (Sharp/OCR) failed, continuing with original:', procErr.message);
+            // Swap references to use compressed file
+            if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+            finalFilePath = compressedPath;
+            const stats = fs.statSync(compressedPath);
+            finalSize = stats.size;
+            req.file.path = compressedPath;
+            req.file.filename = path.basename(compressedPath);
+
+            console.log(`🔍 Running OCR on: ${req.file.originalname}`);
+            const { data: { text } } = await Tesseract.recognize(compressedPath, 'eng');
+            detectedExpiryDate = extractDateFromText(text);
+          } catch (procErr) {
+            console.warn('⚠️ Image processing (Sharp/OCR) failed, continuing with original:', procErr.message);
+          }
+        } else if (ext === '.pdf') {
+          try {
+            console.log(`📑 Parsing PDF text: ${req.file.originalname}`);
+            const dataBuffer = fs.readFileSync(req.file.path);
+            const data = await pdfParse(dataBuffer);
+            detectedExpiryDate = extractDateFromText(data.text);
+          } catch (procErr) {
+            console.warn('⚠️ PDF parsing failed, continuing:', procErr.message);
+          }
         }
-      } else if (ext === '.pdf') {
-        try {
-          console.log(`📑 Parsing PDF text: ${req.file.originalname}`);
-          const dataBuffer = fs.readFileSync(req.file.path);
-          const data = await pdfParse(dataBuffer);
-          detectedExpiryDate = extractDateFromText(data.text);
-        } catch (procErr) {
-          console.warn('⚠️ PDF parsing failed, continuing:', procErr.message);
-        }
+      } catch (outerProcErr) {
+        console.error('❌ Smart processing failed unexpectedly:', outerProcErr);
       }
-    } catch (outerProcErr) {
-      console.error('❌ Smart processing failed unexpectedly:', outerProcErr);
-    }
-    // --- End Smart Processing ---
+      // --- End Smart Processing ---
 
-    const relativePath = `/uploads/${req.userId}/${req.file.filename}`;
+      const relativePath = `/uploads/${req.userId}/${req.file.filename}`;
 
-    const { title, category, description, expiry_date } = req.body;
+      const { title, category, description, expiry_date } = req.body;
 
-    try {
-      const result = await pool.query(
-        `INSERT INTO documents (user_id, title, category, file_name, file_path, file_size, mime_type, description, expiry_date)
+      try {
+        const result = await pool.query(
+          `INSERT INTO documents (user_id, title, category, file_name, file_path, file_size, mime_type, description, expiry_date)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at`,
-        [
-          req.userId,
-          title || req.file.originalname,
-          category || 'other',
-          req.file.originalname,
-          relativePath,
-          finalSize,
-          req.file.mimetype,
-          description || '',
-          expiry_date || null
-        ]
-      );
+          [
+            req.userId,
+            title || req.file.originalname,
+            category || 'other',
+            req.file.originalname,
+            relativePath,
+            finalSize,
+            req.file.mimetype,
+            description || '',
+            expiry_date || null
+          ]
+        );
 
-      const newDoc = result.rows[0];
+        const newDoc = result.rows[0];
 
-      if (detectedExpiryDate) {
-        try {
-          await pool.query(
-            `INSERT INTO deadlines (user_id, document_id, title, description, deadline_date, reminder_days, category)
+        if (detectedExpiryDate) {
+          try {
+            await pool.query(
+              `INSERT INTO deadlines (user_id, document_id, title, description, deadline_date, reminder_days, category)
              VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [
-              req.userId,
-              newDoc.id,
-              `Renew: ${title || req.file.originalname}`,
-              `Automatically created reminder for document expiry`,
-              detectedExpiryDate,
-              30,
-              category || 'other'
-            ]
-          );
-          console.log('✅ Automated reminder created for expiry date:', detectedExpiryDate);
-        } catch (dbErr) {
-          console.error('Error automatically creating deadline:', dbErr);
+              [
+                req.userId,
+                newDoc.id,
+                `Renew: ${title || req.file.originalname}`,
+                `Automatically created reminder for document expiry`,
+                detectedExpiryDate,
+                30,
+                category || 'other'
+              ]
+            );
+            console.log('✅ Automated reminder created for expiry date:', detectedExpiryDate);
+          } catch (dbErr) {
+            console.error('Error automatically creating deadline:', dbErr);
+          }
         }
-      }
 
-      res.status(201).json({
-        message: 'Document uploaded successfully',
-        document: mapDocument(req, {
-          id: newDoc.id,
-          title: title || req.file.originalname,
-          category: category || 'other',
-          file_name: req.file.originalname,
-          file_path: relativePath,
-          created_at: newDoc.created_at,
-          expiry_date: expiry_date || null,
-          description: description || '',
-          mime_type: req.file.mimetype,
-          file_size: finalSize,
-          user_id: req.userId
-        }),
-        metadata: {
-          wasCompressed: isImage,
-          originalSize: req.file.size,
-          compressedSize: finalSize,
-          suggestedExpiryDate: detectedExpiryDate
+        res.status(201).json({
+          message: 'Document uploaded successfully',
+          document: mapDocument(req, {
+            id: newDoc.id,
+            title: title || req.file.originalname,
+            category: category || 'other',
+            file_name: req.file.originalname,
+            file_path: relativePath,
+            created_at: newDoc.created_at,
+            expiry_date: expiry_date || null,
+            description: description || '',
+            mime_type: req.file.mimetype,
+            file_size: finalSize,
+            user_id: req.userId
+          }),
+          metadata: {
+            wasCompressed: isImage,
+            originalSize: req.file.size,
+            compressedSize: finalSize,
+            suggestedExpiryDate: detectedExpiryDate
+          }
+        });
+      } catch (dbErr) {
+        if (fs.existsSync(finalFilePath)) {
+          fs.unlinkSync(finalFilePath);
         }
-      });
-    } catch (dbErr) {
-      if (fs.existsSync(finalFilePath)) {
-        fs.unlinkSync(finalFilePath);
+        throw dbErr;
       }
-      throw dbErr;
-    }
-  } catch (error) {
-    console.error('Upload Error:', error);
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
+    } catch (error) {
+      console.error('Upload Error:', error);
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
       res.status(500).json({ error: 'Server error' });
     }
   });
@@ -247,7 +249,7 @@ router.get('/search', authenticate, async (req, res) => {
   try {
     const pool = getDb();
     const { q } = req.query;
-    
+
     if (!q) {
       return res.json({ documents: [] });
     }
@@ -265,7 +267,7 @@ router.get('/search', authenticate, async (req, res) => {
        ORDER BY d.created_at DESC`,
       [req.userId, `%${q}%`]
     );
-    
+
     res.json({ documents: rows.map(doc => mapDocument(req, doc)) });
   } catch (error) {
     console.error('Search Documents Error:', error);
@@ -306,6 +308,80 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
+// Lock document
+router.patch('/:id/lock', authenticate, async (req, res) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Unauthorized request' });
+    }
+
+    const { passcode } = req.body;
+    if (!passcode || passcode.trim() === '') {
+      return res.status(400).json({ error: 'Passcode is required to lock document' });
+    }
+
+    const pool = getDb();
+    const docId = parseInt(req.params.id);
+    if (isNaN(docId)) {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
+    
+    // Ensure document exists and belongs exclusively to the user (security mechanism)
+    const checkDoc = await pool.query('SELECT * FROM documents WHERE id = $1 AND user_id = $2', [docId, req.userId]);
+    if (checkDoc.rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found or unauthorized' });
+    }
+    
+    const hashedPasscode = await bcrypt.hash(passcode.toString(), 10);
+    
+    await pool.query(
+      'UPDATE documents SET is_locked = 1, passcode_hash = $1 WHERE id = $2 AND user_id = $3',
+      [hashedPasscode, docId, req.userId]
+    );
+
+    res.json({ message: 'Document locked successfully' });
+  } catch (err) {
+    console.error('Lock Error:', err);
+    res.status(500).json({ error: 'Server error during lock operation' });
+  }
+});
+
+// Unlock Document Validation
+router.post('/:id/unlock', authenticate, async (req, res) => {
+  try {
+    const { passcode } = req.body;
+    const pool = getDb();
+    const docId = parseInt(req.params.id);
+
+    // Grab doc mapping (including shared permissions logic potentially if accessed, but here isolating to user validation)
+    const checkDoc = await pool.query('SELECT * FROM documents WHERE id = $1', [docId]);
+    const document = checkDoc.rows[0];
+
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    if (!document.is_locked) {
+      return res.json({ success: true, message: 'Document is not locked' });
+    }
+
+    if (!passcode) {
+      return res.status(401).json({ error: 'Passcode is required to unlock this document' });
+    }
+
+    const isMatch = await bcrypt.compare(passcode.toString(), document.passcode_hash);
+    
+    if (!isMatch) {
+       return res.status(401).json({ error: 'Incorrect passcode' });
+    }
+
+    res.json({ success: true, message: 'Passcode accepted' });
+  } catch (err) {
+    console.error('Unlock Validation Error:', err);
+    res.status(500).json({ error: 'Server error during unlock computation' });
+  }
+});
+
 // Get single document
 router.get('/:id', authenticate, async (req, res) => {
   try {
@@ -314,11 +390,11 @@ router.get('/:id', authenticate, async (req, res) => {
       'SELECT * FROM documents WHERE id = $1 AND user_id = $2',
       [req.params.id, req.userId]
     );
-    
+
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Document not found' });
     }
-    
+
     res.json({ document: mapDocument(req, rows[0]) });
   } catch (error) {
     console.error('Fetch Document Error:', error);
@@ -331,7 +407,7 @@ router.patch('/:id/favorite', authenticate, async (req, res) => {
   try {
     const pool = getDb();
     const docId = parseInt(req.params.id);
-    
+
     if (isNaN(docId)) {
       return res.status(400).json({ error: 'Invalid document ID' });
     }
@@ -369,14 +445,15 @@ router.get('/:id/download', authenticate, async (req, res) => {
       'SELECT * FROM documents WHERE id = $1 AND user_id = $2',
       [req.params.id, req.userId]
     );
-    
+
     const document = rows[0];
     if (!document) {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    const filePath = path.join(__dirname, '../..', document.file_path);
-    
+    const cleanPath = document.file_path.startsWith('/') ? document.file_path.slice(1) : document.file_path;
+    const filePath = path.join(__dirname, '../../', cleanPath);
+
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'File not found on server' });
     }
@@ -393,11 +470,11 @@ router.delete('/:id', authenticate, async (req, res) => {
   try {
     const pool = getDb();
     const docId = parseInt(req.params.id);
-    
+
     if (isNaN(docId)) {
       return res.status(400).json({ error: 'Invalid document ID' });
     }
-    
+
     console.log(`[DELETE] User ${req.userId} is trying to delete document ${docId}`);
 
     // First get the document to delete the file from the filesystem
@@ -413,8 +490,8 @@ router.delete('/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    // Delete the file
-    const filePath = path.join(__dirname, '../..', document.file_path);
+    const cleanPath = document.file_path.startsWith('/') ? document.file_path.slice(1) : document.file_path;
+    const filePath = path.join(__dirname, '../../', cleanPath);
     if (fs.existsSync(filePath)) {
       try {
         fs.unlinkSync(filePath);
@@ -435,7 +512,7 @@ router.delete('/:id', authenticate, async (req, res) => {
       [req.userId, 'Document Deleted', `Document ${document.title} was safely removed.`, 'security']
     );
     console.log("Notification created");
-    
+
     res.json({ message: 'Document deleted successfully' });
   } catch (error) {
     console.error('Delete Document Error:', error);
@@ -449,7 +526,7 @@ router.post('/:id/share', authenticate, async (req, res) => {
     const pool = getDb();
     const docId = parseInt(req.params.id);
     const { expires_in_days } = req.body;
-    
+
     if (isNaN(docId)) {
       return res.status(400).json({ error: 'Invalid document ID' });
     }
@@ -466,13 +543,13 @@ router.post('/:id/share', authenticate, async (req, res) => {
 
     // Generate secure token
     const token = crypto.randomBytes(32).toString('hex');
-    
+
     // Calculate expiry
     let expiresAt = null;
     if (expires_in_days && !isNaN(expires_in_days) && expires_in_days > 0) {
-       const d = new Date();
-       d.setDate(d.getDate() + parseInt(expires_in_days));
-       expiresAt = d;
+      const d = new Date();
+      d.setDate(d.getDate() + parseInt(expires_in_days));
+      expiresAt = d;
     }
 
     // Insert into shared_links
@@ -483,11 +560,11 @@ router.post('/:id/share', authenticate, async (req, res) => {
     );
 
     const shareUrl = `${req.protocol}://${req.get('host')}/api/share/${token}`;
-    
-    res.status(201).json({ 
-      message: 'Secure share link generated', 
+
+    res.status(201).json({
+      message: 'Secure share link generated',
       shareUrl,
-      expiresAt 
+      expiresAt
     });
   } catch (error) {
     console.error('Share Document Error:', error);
@@ -567,7 +644,7 @@ router.post('/:id/versions', authenticate, (req, res) => {
       // Smart Processing: OCR & Compression
       try {
         const ext = path.extname(req.file.originalname).toLowerCase();
-        
+
         if (['.jpeg', '.jpg', '.png'].includes(ext)) {
           isImage = true;
           try {
@@ -607,11 +684,11 @@ router.post('/:id/versions', authenticate, (req, res) => {
           `INSERT INTO document_versions (document_id, file_name, file_path, file_size, mime_type, created_at)
            VALUES ($1, $2, $3, $4, $5, $6)`,
           [
-            existingDoc.id, 
-            existingDoc.file_name, 
-            existingDoc.file_path, 
-            existingDoc.file_size, 
-            existingDoc.mime_type, 
+            existingDoc.id,
+            existingDoc.file_name,
+            existingDoc.file_path,
+            existingDoc.file_size,
+            existingDoc.mime_type,
             existingDoc.created_at
           ]
         );
@@ -659,14 +736,14 @@ router.get('/version/:vid/download', authenticate, async (req, res) => {
       JOIN documents d ON v.document_id = d.id
       WHERE v.id = $1 AND d.user_id = $2
     `, [vid, req.userId]);
-    
+
     const version = rows[0];
     if (!version) {
       return res.status(404).json({ error: 'Version not found or access denied' });
     }
 
     const filePath = path.join(__dirname, '../..', version.file_path);
-    
+
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Historical file securely removed or missing from server' });
     }

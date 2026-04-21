@@ -37,9 +37,9 @@
         });
 
         const data = await response.json();
-        
+
         if (!response.ok) throw new Error(data.message || 'Upload failed');
-        
+
         setMessage('File uploaded successfully!');
         setFile(null);
       } catch (err) {
@@ -59,25 +59,25 @@
           <h1 className="text-3xl font-display font-bold text-white tracking-tight">Upload Document</h1>
           <p className="text-slate-400 mt-1">Files are securely sent to the local backend and Postgres DB.</p>
         </div>
-        
+
         {message && (
           <div className="mb-4 bg-cyan-500/10 border border-cyan-500/50 text-cyan-400 rounded-lg p-3 text-sm">
             {message}
           </div>
         )}
 
-        <GlassCard 
+        <GlassCard
           className="p-10 border-dashed border-2 border-slate-600/50 hover:border-cyan-500/50 hover:bg-navy-800/80 transition-all cursor-pointer flex flex-col items-center justify-center min-h-[400px]"
           onClick={() => fileInputRef.current?.click()}
         >
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            style={{ display: 'none' }} 
+          <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
             onChange={handleFileChange}
             onClick={(e) => e.stopPropagation()}
           />
-          
+
           <div className="w-20 h-20 rounded-full bg-cyan-500/10 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(6,182,212,0.1)]">
             <Icons.Plus size={32} className="text-cyan-400" />
           </div>
@@ -85,13 +85,13 @@
             {file ? file.name : "Click to select your files here"}
           </h3>
           <p className="text-slate-400 text-sm mb-6 max-w-xs text-center">Supports PDF, JPG, PNG, DOCX up to 50MB per file.</p>
-          
+
           {file ? (
             <Button variant="primary" onClick={(e) => { e.stopPropagation(); handleUpload(); }} disabled={uploading}>
               {uploading ? 'Uploading...' : 'Confirm Upload'}
             </Button>
           ) : (
-             <Button variant="secondary" className="pointer-events-none">Browse Files</Button>
+            <Button variant="secondary" className="pointer-events-none">Browse Files</Button>
           )}
         </GlassCard>
 

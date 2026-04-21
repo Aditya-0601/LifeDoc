@@ -57,6 +57,8 @@ const createTables = () => {
         mime_type VARCHAR(100),
         description TEXT,
         is_favorite INTEGER DEFAULT 0,
+        is_locked BOOLEAN DEFAULT FALSE,
+        passcode_hash VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       
@@ -148,6 +150,16 @@ const createTables = () => {
       try {
         await pool.query('ALTER TABLE documents ADD COLUMN is_favorite INTEGER DEFAULT 0');
         console.log('✅ Added is_favorite column to documents table');
+      } catch(e) { /* Ignore if it already exists */ }
+
+      try {
+        await pool.query('ALTER TABLE documents ADD COLUMN is_locked BOOLEAN DEFAULT FALSE');
+        console.log('✅ Added is_locked column to documents table');
+      } catch(e) { /* Ignore if it already exists */ }
+
+      try {
+        await pool.query('ALTER TABLE documents ADD COLUMN passcode_hash VARCHAR(255)');
+        console.log('✅ Added passcode_hash column to documents table');
       } catch(e) { /* Ignore if it already exists */ }
       
       try {

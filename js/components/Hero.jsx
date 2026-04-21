@@ -121,7 +121,11 @@
                 <Link to="/register">
                   <Button className="shadow-[0_0_20px_rgba(6,182,212,0.5)] px-8 py-3.5 text-lg border cursor-pointer border-cyan-400">Get Started</Button>
                 </Link>
-                <Button variant="secondary" className="bg-navy-900/60 backdrop-blur-md border border-white/20 hover:bg-navy-800 px-8 py-3.5 text-lg shadow-xl relative z-20 cursor-pointer">
+                <Button 
+                  variant="secondary" 
+                  className="bg-navy-900/60 backdrop-blur-md border border-white/20 hover:bg-navy-800 px-8 py-3.5 text-lg shadow-xl relative z-20 cursor-pointer"
+                  onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}
+                >
                   See How It Works
                 </Button>
               </div>

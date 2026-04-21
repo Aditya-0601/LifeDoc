@@ -11,7 +11,7 @@
 
   // Mini component: Product Demo Mockup
   const ProductDemo = () => (
-    <section className="py-24">
+    <section id="how-it-works" className="py-24">
       <div className="max-w-7xl mx-auto px-6 flex flex-col items-center">
         <h2 className="text-3xl md:text-4xl font-display font-bold text-center mb-12">Intelligent Tracking at a Glance</h2>
         <motion.div
@@ -82,8 +82,8 @@
           <span className="font-display font-bold text-xl tracking-tight text-white">Life<span className="text-cyan-500">Doc</span></span>
         </div>
         <nav className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-300">
-          <a href="#" className="hover:text-white transition-colors">Features</a>
-          <a href="#" className="hover:text-white transition-colors">Security</a>
+          <a href="#features" className="hover:text-white transition-colors">Features</a>
+          <a href="#security" className="hover:text-white transition-colors">Security</a>
         </nav>
         <div className="flex items-center justify-end space-x-4">
           <Link to="/login" className="text-sm font-medium text-slate-300 hover:text-white hidden md:block">Sign In</Link>
@@ -122,7 +122,7 @@
             <Features />
             <ProductDemo />
 
-            <section className="py-24 text-center max-w-3xl mx-auto px-6">
+            <section id="security" className="py-24 text-center max-w-3xl mx-auto px-6">
               <Icons.Shield className="w-16 h-16 text-cyan-400 mx-auto mb-6 opacity-80" />
               <h2 className="text-3xl font-display font-bold mb-6">Bank-Grade Trust</h2>
               <p className="text-slate-400 text-lg mb-8 text-balance">We employ end-to-end AES-256 encryption. Your keys never leave your devices, meaning even we cannot access your stored life documents.</p>

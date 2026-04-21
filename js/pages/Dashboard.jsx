@@ -34,6 +34,7 @@
     const [hasUnread, setHasUnread] = useState(false);
     const [loading, setLoading] = useState(true);
     const [analyticsData, setAnalyticsData] = useState(null);
+    const [documents, setDocuments] = useState([]);
 
     const CATEGORY_COLORS = {
       identity: '#3b82f6',
@@ -53,8 +54,16 @@
             api.get('/notifications'),
             api.get('/analytics').catch(() => ({ data: null }))
           ]);
+          console.log("API response:", {
+            documents: docsRes.data,
+            deadlines: deadlinesRes.data,
+            notifications: notifRes.data,
+            analytics: analyticsRes?.data || null
+          });
 
           const docs = docsRes.data.documents || [];
+          console.log("Documents:", docs);
+          setDocuments(docs);
           const deadlines = deadlinesRes.data.deadlines || [];
           const notifications = notifRes.data.notifications || [];
           
@@ -136,6 +145,18 @@
       const date = new Date(isoString);
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     };
+
+    const chartData = documents.reduce((acc, doc) => {
+      const categoryName = doc.category || 'Other';
+      const existing = acc.find(item => item.name === categoryName);
+      if (existing) {
+        existing.value += 1;
+      } else {
+        acc.push({ name: categoryName, value: 1 });
+      }
+      return acc;
+    }, []);
+    console.log("Chart data:", chartData);
 
     if (loading) {
       return <div className="text-white">Loading dashboard...</div>;
@@ -398,23 +419,26 @@
         </motion.div>
 
         {/* Analytics Section */}
-        {analyticsData && (
+        {(documents.length > 0 || analyticsData) && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="mb-8">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-display font-extrabold text-white tracking-tight">Vault Analytics</h2>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
 
               {/* Category Distribution - SVG Donut Chart */}
-              <GlassCard className="flex flex-col">
+              <GlassCard className="flex flex-col min-h-[320px]">
                 <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-6 flex items-center">
                   <Icons.PieChart size={16} className="mr-2 text-cyan-400" /> Category Distribution
                 </h3>
-                {analyticsData.byCategory && analyticsData.byCategory.length > 0 ? (() => {
-                  const total = analyticsData.byCategory.reduce((s, c) => s + c.value, 0);
+                {chartData.length > 0 ? (() => {
+                  const safeChartData = chartData
+                    .map(item => ({ name: item.name, value: Number(item.value) || 0 }))
+                    .filter(item => item.value > 0);
+                  const total = safeChartData.reduce((s, c) => s + c.value, 0);
                   let cum = 0;
                   const R = 70;
-                  const slices = analyticsData.byCategory.map(cat => {
+                  const slices = safeChartData.map(cat => {
                     const pct = cat.value / total;
                     const startA = cum * 360;
                     cum += pct;
@@ -427,20 +451,23 @@
                       y1: 90 + R * Math.sin(toRad(startA)),
                       x2: 90 + R * Math.cos(toRad(endA)),
                       y2: 90 + R * Math.sin(toRad(endA)),
-                      large: (endA - startA) > 180 ? 1 : 0
+                      large: (endA - startA) > 180 ? 1 : 0,
+                      isFull: pct >= 1
                     };
                   });
                   return (
-                    <div className="flex items-center gap-6">
-                      <svg viewBox="0 0 180 180" width="160" height="160" className="shrink-0">
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-6 w-full min-h-[220px]">
+                      <svg viewBox="0 0 180 180" width="180" height="180" className="shrink-0 drop-shadow-[0_0_15px_rgba(6,182,212,0.15)]">
                         {slices.map((s, i) => (
-                          <path key={i} d={`M90,90 L${s.x1},${s.y1} A${R},${R} 0 ${s.large},1 ${s.x2},${s.y2} Z`} fill={s.color} opacity="0.9" />
+                          s.isFull ? 
+                            <circle key={i} cx="90" cy="90" r={R} fill={s.color} opacity="0.9" /> :
+                            <path key={i} d={`M90,90 L${s.x1},${s.y1} A${R},${R} 0 ${s.large},1 ${s.x2},${s.y2} Z`} fill={s.color} opacity="0.9" stroke="#0A0F1C" strokeWidth="1" />
                         ))}
                         <circle cx="90" cy="90" r="46" fill="#0A0F1C" />
                         <text x="90" y="87" textAnchor="middle" fill="white" fontSize="18" fontWeight="bold">{total}</text>
                         <text x="90" y="103" textAnchor="middle" fill="#64748b" fontSize="9">total docs</text>
                       </svg>
-                      <div className="flex flex-col gap-2.5 flex-1 min-w-0">
+                      <div className="flex flex-col gap-2.5 flex-1 min-w-[180px] w-full">
                         {slices.map((s, i) => (
                           <div key={i} className="flex items-center justify-between text-xs">
                             <div className="flex items-center gap-2 min-w-0">
@@ -462,11 +489,11 @@
               </GlassCard>
 
               {/* Expiring Soon - CSS Bar Chart */}
-              <GlassCard className="flex flex-col">
+              <GlassCard className="flex flex-col min-h-[320px]">
                 <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-6 flex items-center">
                   <Icons.BarChart2 size={16} className="mr-2 text-amber-400" /> Expiries in Next 30 Days
                 </h3>
-                {analyticsData.expiringSoon && analyticsData.expiringSoon.length > 0 ? (
+                {analyticsData?.expiringSoon && analyticsData.expiringSoon.length > 0 ? (
                   <div className="flex flex-col gap-4">
                     {analyticsData.expiringSoon.map((item, i) => {
                       const col = item.daysLeft < 7 ? '#ef4444' : item.daysLeft < 15 ? '#f59e0b' : '#10b981';

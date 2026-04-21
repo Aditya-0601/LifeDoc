@@ -5,7 +5,7 @@
  * Provides statistics, user management (enable/disable), and document moderation (delete).
  */
 (function () {
-  const { GlassCard, Button, Icons, useToast } = window;
+  const { GlassCard, Button, Icons, useToast, useAuth } = window;
   const { motion, AnimatePresence } = window.Motion;
   const { Link } = window.Router;
 
@@ -14,6 +14,7 @@
 
   const AdminDashboard = () => {
     const { showSuccess, showError } = useToast();
+    const { user: currentUser } = useAuth();
     // Auth State
     const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(sessionStorage.getItem('adminToken') === 'true');
     const [adminCode, setAdminCode] = useState('');
@@ -37,8 +38,13 @@
           api.get('/admin/documents'),
           api.get('/admin/stats')
         ]);
+        console.log("API response:", {
+          users: usersRes.data,
+          documents: docsRes.data,
+          stats: statsRes.data
+        });
         setUsers(usersRes.data.users || []);
-        setDocuments(usersRes.data.documents || []);
+        setDocuments(docsRes.data.documents || []);
         if (statsRes.data) setStats(statsRes.data);
       } catch (err) {
         console.error("Failed to load admin data:", err);
@@ -203,13 +209,15 @@
                         >
                           {u.is_active ? 'Disable' : 'Enable'}
                         </Button>
-                        <button 
-                          onClick={() => setConfirmDeleteUserId(u.id)} 
-                          className="text-slate-500 hover:text-red-400 transition-colors p-1 bg-white/5 hover:bg-white/10 rounded" 
-                          title="Delete User"
-                        >
-                          <Icons.Trash size={16} />
-                        </button>
+                        {Number(u.id) !== Number(currentUser.id) && (
+                          <button 
+                            onClick={() => setConfirmDeleteUserId(u.id)} 
+                            className="text-slate-500 hover:text-red-400 transition-colors p-1 bg-white/5 hover:bg-white/10 rounded" 
+                            title="Delete User"
+                          >
+                            <Icons.Trash size={16} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

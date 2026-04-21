@@ -47,10 +47,25 @@ router.put('/users/:id/enable', authenticate, async (req, res) => {
 router.delete('/users/:id', authenticate, async (req, res) => {
   try {
     const pool = getDb();
+    const targetUserId = parseInt(req.params.id, 10);
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: 'Unauthorized request' });
+    }
+
+    if (String(req.user.id) === String(req.params.id)) {
+      return res.status(400).json({
+        message: "You cannot delete your own account"
+      });
+    }
+
+    if (Number.isNaN(targetUserId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
     
     // Deleting the user should cascade delete documents and deadlines because
     // of `ON DELETE CASCADE` in our init schema for `documents`, `deadlines`, etc.
-    const { rowCount } = await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+    const { rowCount } = await pool.query('DELETE FROM users WHERE id = $1', [targetUserId]);
     
     if (rowCount === 0) return res.status(404).json({ error: 'User not found' });
     

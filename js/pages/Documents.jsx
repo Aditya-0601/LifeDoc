@@ -21,6 +21,15 @@
     const [selectedDocument, setSelectedDocument] = useState(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [imgError, setImgError] = useState(false);
+    const [lockModalOpen, setLockModalOpen] = useState(false);
+    const [unlockModalOpen, setUnlockModalOpen] = useState(false);
+    const [lockTargetDoc, setLockTargetDoc] = useState(null);
+    const [lockPasscode, setLockPasscode] = useState('');
+    const [unlockPasscode, setUnlockPasscode] = useState('');
+    const [lockError, setLockError] = useState('');
+    const [unlockError, setUnlockError] = useState('');
+    const [lockLoading, setLockLoading] = useState(false);
+    const [unlockLoading, setUnlockLoading] = useState(false);
     
     // Deletion Modal State
     const [confirmDeleteDocId, setConfirmDeleteDocId] = useState(null);
@@ -37,6 +46,48 @@
     const [isUploadingVersion, setIsUploadingVersion] = useState(false);
     const fileInputRef = window.React.useRef(null);
 
+    const openUrlWithAuth = async (url) => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(url, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (!response.ok) {
+          throw new Error('Unable to open document.');
+        }
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        window.open(objectUrl, '_blank');
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+      } catch (err) {
+        showError(err.message || 'Failed to open document.');
+      }
+    };
+
+    const downloadWithAuth = async (doc) => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${api.defaults.baseURL}/documents/${doc.id}/download`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || 'Unable to download file.');
+        }
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = doc.fileName || doc.name || 'document';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+      } catch (err) {
+        showError(err.message || 'Failed to download document.');
+      }
+    };
+
     useEffect(() => {
       setImgError(false);
       if (selectedDocument && !selectedDocument.isShared) {
@@ -50,6 +101,7 @@
       try {
         setIsVersionsLoading(true);
         const res = await api.get(`/documents/${id}/versions`);
+        console.log("API response:", res.data);
         setDocVersions(res.data.versions || []);
       } catch (err) {
         console.error("Failed to load versions:", err);
@@ -75,6 +127,7 @@
         const res = await api.post(`/documents/${selectedDocument.id}/versions`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
+        console.log("API response:", res.data);
         showSuccess("New version uploaded securely!");
         setSelectedDocument(res.data.document); // Update preview to new document
         fetchVersions(selectedDocument.id); // Refresh history
@@ -88,9 +141,28 @@
       }
     };
 
-    const handleDownloadVersion = (vid, fileName, e) => {
+    const handleDownloadVersion = async (vid, fileName, e) => {
       e.stopPropagation();
-      window.open(`${api.defaults.baseURL}/documents/version/${vid}/download`, '_blank');
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${api.defaults.baseURL}/documents/version/${vid}/download`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (!response.ok) {
+          throw new Error('Unable to download version.');
+        }
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = fileName || `version-${vid}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+      } catch (err) {
+        showError(err.message || 'Failed to download version.');
+      }
     };
 
     const fetchDocuments = async () => {
@@ -102,7 +174,10 @@
         }
         
         const res = await api.get(url);
+        console.log("API response:", res.data);
         let fetchedDocs = res.data.documents || [];
+        console.log("Documents:", fetchedDocs);
+        fetchedDocs.forEach(doc => console.log("Lock field:", doc.isLocked));
         
         if (categoryFilter !== "All Categories") {
           fetchedDocs = fetchedDocs.filter(d => 
@@ -199,9 +274,71 @@
 
     const handlePreview = (doc, e) => {
       e.stopPropagation();
+      if (doc.isLocked) {
+        setSelectedDocument(doc);
+        setUnlockPasscode('');
+        setUnlockError('');
+        setUnlockModalOpen(true);
+        return;
+      }
       setSelectedDocument(doc);
       setIsPreviewOpen(true);
       setImgError(false);
+    };
+
+    const openLockModal = (doc, e) => {
+      e.stopPropagation();
+      if (doc.isShared) return;
+      setLockTargetDoc(doc);
+      setLockPasscode('');
+      setLockError('');
+      setLockModalOpen(true);
+    };
+
+    const handleConfirmLock = async () => {
+      if (!lockTargetDoc) return;
+      if (!lockPasscode || lockPasscode.trim().length < 4) {
+        setLockError('Passcode must be at least 4 characters.');
+        return;
+      }
+
+      try {
+        setLockLoading(true);
+        setLockError('');
+        const res = await api.patch(`/documents/${lockTargetDoc.id}/lock`, { passcode: lockPasscode.trim() });
+        console.log("API response:", res.data);
+        showSuccess('Document locked successfully.');
+        setLockModalOpen(false);
+        setDocs(currentDocs => currentDocs.map(d => (
+          d.id === lockTargetDoc.id ? { ...d, isLocked: true } : d
+        )));
+      } catch (err) {
+        setLockError(err.response?.data?.error || 'Failed to lock document.');
+      } finally {
+        setLockLoading(false);
+      }
+    };
+
+    const handleUnlockBeforePreview = async () => {
+      if (!selectedDocument) return;
+      if (!unlockPasscode) {
+        setUnlockError('Please enter the passcode.');
+        return;
+      }
+
+      try {
+        setUnlockLoading(true);
+        setUnlockError('');
+        const res = await api.post(`/documents/${selectedDocument.id}/unlock`, { passcode: unlockPasscode });
+        console.log("API response:", res.data);
+        setUnlockModalOpen(false);
+        setIsPreviewOpen(true);
+        setImgError(false);
+      } catch (err) {
+        setUnlockError(err.response?.data?.error || 'Incorrect passcode.');
+      } finally {
+        setUnlockLoading(false);
+      }
     };
 
     const handleShareClick = (doc, e) => {
@@ -221,6 +358,7 @@
         if (shareExpiry === "30") days = 30;
 
         const res = await api.post(`/documents/${shareModalDoc.id}/share`, { expires_in_days: days });
+        console.log("API response:", res.data);
         setGeneratedLink(res.data.shareUrl);
         showSuccess("Public share link generated!");
       } catch (err) {
@@ -239,8 +377,7 @@
 
     const handleDownload = (doc, e) => {
       e.stopPropagation();
-      // Use the dedicated download endpoint for better filename control
-      window.open(`${api.defaults.baseURL}/documents/${doc.id}/download`, '_blank');
+      downloadWithAuth(doc);
     };
 
     const renderPreview = () => {
@@ -272,16 +409,13 @@
         );
       } else if (isPdf) {
         return (
-          <div className="flex flex-col items-center justify-center h-full w-full min-h-[500px] bg-navy-900/50 rounded-xl overflow-hidden border border-white/10 group">
-            <iframe 
-              src={`${selectedDocument.fileUrl}#toolbar=0&navpanes=0&scrollbar=0`} 
-              className="w-full h-[500px] border-none"
-              title="PDF Preview"
-            />
-            <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-navy-900 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-               <Button variant="secondary" onClick={(e) => handleDownload(selectedDocument, e)} className="w-full flex items-center justify-center backdrop-blur-md">
-                 <Icons.FileText size={16} className="mr-2" /> Open Full Document
-               </Button>
+          <div className="flex flex-col h-full w-full group relative">
+            <div className="flex flex-col items-center justify-center w-full min-h-[450px] bg-navy-900/50 rounded-xl overflow-hidden border border-white/10">
+              <iframe 
+                src={`${selectedDocument.fileUrl}#toolbar=0&navpanes=0&scrollbar=0`} 
+                className="w-full h-[450px] border-none"
+                title="PDF Preview"
+              />
             </div>
           </div>
         );
@@ -365,52 +499,34 @@
              <div className="mt-4"><Link to="/dashboard/upload" className="text-cyan-400 hover:text-cyan-300">Upload one</Link></div>
            </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-12">
             {docs.map((doc) => (
-              <GlassCard hover key={doc.id} className="p-4 flex flex-col justify-between group relative h-full">
-                <div className="absolute top-4 right-4 flex space-x-2 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  <div 
-                    className="hover:text-cyan-400 cursor-pointer p-1 bg-navy-900/50 rounded"
-                    onClick={(e) => handleDownload(doc, e)}
-                    title="Download Document"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  </div>
-                  <div 
-                    className={`cursor-pointer p-1 bg-navy-900/50 rounded transition-colors ${doc.isFavorite ? 'text-amber-400 hover:text-amber-300' : 'hover:text-amber-400'}`}
-                    onClick={(e) => handleToggleFavorite(doc, e)}
-                    title={doc.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
-                  >
-                    <Icons.Star size={16} className={doc.isFavorite ? "fill-amber-400" : ""} />
-                  </div>
-                  {!doc.isShared && (
-                    <>
-                      <div 
-                        className="hover:text-indigo-400 cursor-pointer p-1 bg-navy-900/50 rounded transition-colors"
-                        onClick={(e) => handleShareClick(doc, e)}
-                        title="Share Document"
+              <GlassCard hover key={doc.id} className="p-4 flex flex-col justify-between group relative h-[250px] overflow-hidden">
+                <div className="cursor-pointer flex-1" onClick={(e) => handlePreview(doc, e)}>
+                  <div className="flex justify-between items-start mb-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-all ${
+                      doc.fileType === 'pdf' ? 'bg-red-500/10 text-red-400 group-hover:bg-red-500/20' : 
+                      ['jpg','jpeg','png'].includes(doc.fileType) ? 'bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20' :
+                      'bg-cyan-500/10 text-cyan-400 group-hover:bg-cyan-500/20'
+                    }`}>
+                      <Icons.FileText size={20} />
+                    </div>
+
+                    <div className="flex space-x-1.5 z-30">
+                      <button
+                        className={`px-2 py-1 flex items-center text-xs font-semibold rounded border transition-colors shadow-sm ${
+                          doc.isLocked
+                            ? 'bg-rose-500/20 border-rose-500/30 text-rose-400'
+                            : 'bg-navy-900/80 border-white/15 text-slate-400 hover:text-cyan-400 hover:border-cyan-500/40'
+                        }`}
+                        onClick={(e) => openLockModal(doc, e)}
+                        title={doc.isLocked ? 'Document is locked' : 'Lock document'}
                       >
-                        <Icons.Share size={16} />
-                      </div>
-                      <div 
-                        className="hover:text-red-400 cursor-pointer p-1 bg-navy-900/50 rounded transition-colors"
-                        onClick={(e) => handleDeleteClick(doc.id, e)}
-                        title="Delete Document"
-                      >
-                        <Icons.Trash size={16} />
-                      </div>
-                    </>
-                  )}
-                </div>
-                
-                <div className="cursor-pointer" onClick={(e) => handlePreview(doc, e)}>
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-all ${
-                    doc.fileType === 'pdf' ? 'bg-red-500/10 text-red-400 group-hover:bg-red-500/20' : 
-                    ['jpg','jpeg','png'].includes(doc.fileType) ? 'bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20' :
-                    'bg-cyan-500/10 text-cyan-400 group-hover:bg-cyan-500/20'
-                  }`}>
-                    <Icons.FileText size={20} />
+                        {Icons.Lock && <Icons.Lock size={12} className="mr-1" />} {doc.isLocked ? 'Locked' : 'Lock'}
+                      </button>
+                    </div>
                   </div>
+
                   <h3 className="font-semibold text-white/90 text-sm truncate mb-1" title={doc.name}>
                     {doc.isShared && <span className="mr-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-400 align-middle">SHARED</span>}
                     {doc.name}
@@ -421,9 +537,37 @@
                   </p>
                 </div>
 
-                <div className="mt-auto pt-3 border-t border-white/5 flex justify-between items-center text-[11px] text-slate-500 font-medium tracking-wide pointer-events-none">
-                  <span>{formatDate(doc.created_at)}</span>
-                  <span>{formatBytes(doc.file_size)}</span>
+                <div className="mt-auto pt-3 border-t border-white/5 flex flex-col space-y-3">
+                  <div className="flex space-x-2 z-30 opacity-0 group-hover:opacity-100 transition-opacity justify-around">
+                    <div 
+                      className="hover:text-cyan-400 cursor-pointer p-1.5 bg-navy-900/50 rounded flex items-center justify-center flex-1"
+                      onClick={(e) => handleDownload(doc, e)}
+                      title="Download Document"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    </div>
+                    <div 
+                      className={`cursor-pointer p-1.5 bg-navy-900/50 rounded transition-colors flex items-center justify-center flex-1 ${doc.isFavorite ? 'text-amber-400 hover:text-amber-300' : 'hover:text-amber-400'}`}
+                      onClick={(e) => handleToggleFavorite(doc, e)}
+                      title={doc.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+                    >
+                      <Icons.Star size={16} className={doc.isFavorite ? "fill-amber-400" : ""} />
+                    </div>
+                    {!doc.isShared && (
+                      <div 
+                        className="hover:text-red-400 cursor-pointer p-1.5 bg-navy-900/50 rounded transition-colors flex flex-1 items-center justify-center"
+                        onClick={(e) => handleDeleteClick(doc.id, e)}
+                        title="Delete Document"
+                      >
+                        <Icons.Trash size={16} />
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-between items-center text-[11px] text-slate-500 font-medium tracking-wide pointer-events-none">
+                    <span>{formatDate(doc.created_at)}</span>
+                    <span>{formatBytes(doc.file_size)}</span>
+                  </div>
                 </div>
               </GlassCard>
             ))}
@@ -455,12 +599,12 @@
                       <Icons.Plus className="rotate-45" size={20}/>
                     </button>
                   </div>
-                  <div className="p-6 w-full flex flex-col items-center justify-start text-slate-500 min-h-[350px] max-h-[75vh] overflow-y-auto">
+                  <div className="p-6 w-full flex flex-col items-center justify-start text-slate-500 min-h-[350px] max-h-[60vh] overflow-y-auto preview">
                     <div className="w-full flex-1 flex flex-col items-center justify-center min-h-[300px]">
                       {renderPreview()}
                     </div>
                     
-                    <div className="w-full mt-6 bg-navy-900/50 p-6 rounded-xl border border-white/5">
+                    <div className="w-full mt-4 bg-navy-900/50 p-6 rounded-xl border border-white/5 info-section">
                       <h3 className="text-sm font-semibold text-slate-400 mb-4 uppercase tracking-wider">Document Details</h3>
                       <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
                         <div>
@@ -555,7 +699,7 @@
                     </div>
                   </div>
 
-                  <div className="w-full p-6 border-t border-white/10 bg-navy-900/30 flex justify-end items-center space-x-4 shrink-0">
+                  <div className="w-full p-6 border-t border-white/10 bg-navy-900/40 footer flex justify-between items-center shrink-0 mt-5">
                     <Button 
                       variant="secondary" 
                       onClick={() => setIsPreviewOpen(false)} 
@@ -564,25 +708,100 @@
                     >
                       Close
                     </Button>
-                    {selectedDocument && selectedDocument.fileUrl ? (
-                      <Button 
-                        variant="primary" 
-                        onClick={(e) => handleDownload(selectedDocument, e)} 
-                        aria-label="Download Document"
-                        className="transition-transform hover:scale-105 shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:shadow-[0_0_25px_rgba(6,182,212,0.4)]"
-                      >
-                        Download File
-                      </Button>
-                    ) : (
-                      <Button 
-                        variant="secondary" 
-                        aria-label="Download Unavailable" 
-                        className="opacity-50 cursor-not-allowed"
-                        onClick={(e) => e.preventDefault()}
-                      >
-                        Unavailable
-                      </Button>
-                    )}
+                    <div className="flex space-x-3">
+                      {selectedDocument && selectedDocument.fileUrl && (
+                         <Button
+                           variant="secondary"
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             window.open(selectedDocument.fileUrl, '_blank');
+                           }}
+                           className="flex items-center justify-center bg-white/5 hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-400 border border-white/10 hover:border-cyan-500/50 transition-colors"
+                         >
+                           <Icons.FileText size={16} className="mr-2" /> Open Full Document
+                         </Button>
+                      )}
+                      
+                      {selectedDocument && selectedDocument.fileUrl ? (
+                        <Button 
+                          variant="primary" 
+                          onClick={(e) => handleDownload(selectedDocument, e)} 
+                          aria-label="Download Document"
+                          className="transition-transform hover:scale-105 shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:shadow-[0_0_25px_rgba(6,182,212,0.4)]"
+                        >
+                          Download File
+                        </Button>
+                      ) : (
+                        <Button 
+                          variant="secondary" 
+                          aria-label="Download Unavailable" 
+                          className="opacity-50 cursor-not-allowed"
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          Unavailable
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </GlassCard>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {lockModalOpen && lockTargetDoc && (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-navy-900/90 backdrop-blur-sm" onClick={() => setLockModalOpen(false)} />
+              <motion.div initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.96, opacity: 0 }} className="relative z-10 w-full max-w-sm">
+                <GlassCard className="p-6 border-rose-500/30">
+                  <h3 className="text-xl font-bold text-white mb-2 flex items-center">
+                    {Icons.Lock ? <Icons.Lock className="text-rose-400 mr-2" size={18} /> : <span className="text-rose-400 mr-2">🔒</span>} Lock Document
+                  </h3>
+                  <p className="text-slate-400 text-sm mb-4">Set a passcode for <strong>{lockTargetDoc.name}</strong>.</p>
+                  <input
+                    type="password"
+                    value={lockPasscode}
+                    onChange={(e) => setLockPasscode(e.target.value)}
+                    placeholder="Enter 4+ character passcode"
+                    className="w-full bg-navy-900 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-rose-500/50"
+                    onKeyDown={(e) => e.key === 'Enter' && handleConfirmLock()}
+                  />
+                  {lockError && <p className="text-rose-400 text-xs mt-2">{lockError}</p>}
+                  <div className="flex justify-end space-x-3 mt-5">
+                    <Button variant="secondary" onClick={() => setLockModalOpen(false)}>Cancel</Button>
+                    <Button variant="danger" onClick={handleConfirmLock} disabled={lockLoading} className="bg-rose-500 hover:bg-rose-600 text-white border-transparent">
+                      {lockLoading ? 'Locking...' : 'Lock Now'}
+                    </Button>
+                  </div>
+                </GlassCard>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {unlockModalOpen && selectedDocument && (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-navy-900/90 backdrop-blur-sm" onClick={() => setUnlockModalOpen(false)} />
+              <motion.div initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.96, opacity: 0 }} className="relative z-10 w-full max-w-sm">
+                <GlassCard className="p-6 border-rose-500/30">
+                  <h3 className="text-xl font-bold text-white mb-2 flex items-center">
+                    {Icons.Shield ? <Icons.Shield className="text-rose-400 mr-2" size={18} /> : <span className="text-rose-400 mr-2">🛡️</span>} Passcode Required
+                  </h3>
+                  <p className="text-slate-400 text-sm mb-4">Unlock <strong>{selectedDocument.name}</strong> to preview.</p>
+                  <input
+                    type="password"
+                    value={unlockPasscode}
+                    onChange={(e) => setUnlockPasscode(e.target.value)}
+                    placeholder="Enter passcode"
+                    className="w-full bg-navy-900 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-rose-500/50"
+                    onKeyDown={(e) => e.key === 'Enter' && handleUnlockBeforePreview()}
+                  />
+                  {unlockError && <p className="text-rose-400 text-xs mt-2">{unlockError}</p>}
+                  <div className="flex justify-end space-x-3 mt-5">
+                    <Button variant="secondary" onClick={() => setUnlockModalOpen(false)}>Cancel</Button>
+                    <Button variant="primary" onClick={handleUnlockBeforePreview} disabled={unlockLoading}>
+                      {unlockLoading ? 'Verifying...' : 'Unlock & Preview'}
+                    </Button>
                   </div>
                 </GlassCard>
               </motion.div>
