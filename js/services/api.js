@@ -6,7 +6,7 @@
  */
 (function () {
   const api = window.axios.create({
-    baseURL: 'http://localhost:5000/api',
+    baseURL: 'https://lifedoc-backend.onrender.com/api',
     headers: {
       'Content-Type': 'application/json'
     }
