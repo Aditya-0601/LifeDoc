@@ -595,7 +595,7 @@ router.post('/:id/share', authenticate, async (req, res) => {
       [docId, token, expiresAt]
     );
 
-    const shareUrl = `${req.protocol}://${req.get('host')}/api/share/${token}`;
+    const shareUrl = `${getRequestBaseUrl(req)}/api/share/${token}`;
 
     res.status(201).json({
       message: 'Secure share link generated',
