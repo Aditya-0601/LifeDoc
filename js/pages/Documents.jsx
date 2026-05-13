@@ -557,7 +557,7 @@
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-12">
             {docs.map((doc) => (
-              <GlassCard hover key={doc.id} className="p-4 flex flex-col justify-between group relative h-[250px] overflow-hidden">
+              <GlassCard hover key={doc.id} className="p-4 flex flex-col justify-between group relative min-h-[300px] overflow-hidden">
                 <div className="cursor-pointer flex-1" onClick={(e) => handlePreview(doc, e)}>
                   <div className="flex justify-between items-start mb-4">
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-all ${
@@ -568,7 +568,20 @@
                       <Icons.FileText size={20} />
                     </div>
 
-                    <div className="flex space-x-1.5 z-30">
+                    <div className="flex flex-wrap justify-end gap-1.5 z-30 max-w-[150px]">
+                      {!doc.isShared && (
+                        <button
+                          className={`px-2 py-1 flex items-center text-xs font-semibold rounded border transition-colors shadow-sm ${
+                            doc.isEmergencyAccessible
+                              ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+                              : 'bg-navy-900/80 border-white/15 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/40'
+                          }`}
+                          onClick={(e) => handleToggleEmergencyAccess(doc, e)}
+                          title={doc.isEmergencyAccessible ? 'Emergency access enabled' : 'Enable emergency access'}
+                        >
+                          <Icons.Shield size={12} className="mr-1" /> Emergency
+                        </button>
+                      )}
                       <button
                         className={`px-2 py-1 flex items-center text-xs font-semibold rounded border transition-colors shadow-sm ${
                           doc.isLocked
@@ -591,6 +604,23 @@
                     {doc.category || 'Other'}
                     {doc.isShared && <span className="ml-1 text-slate-500">by {doc.ownerName}</span>}
                   </p>
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {doc.expiryDate && (
+                      <span className="px-2 py-1 rounded-md text-[10px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                        Expires {formatDate(doc.expiryDate)}
+                      </span>
+                    )}
+                    {doc.ocrTextPreview && (
+                      <span className="px-2 py-1 rounded-md text-[10px] font-semibold bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                        OCR indexed
+                      </span>
+                    )}
+                  </div>
+                  {doc.ocrTextPreview && (
+                    <p className="text-[11px] text-slate-500 line-clamp-2 mb-2" title={doc.ocrTextPreview}>
+                      {doc.ocrTextPreview}
+                    </p>
+                  )}
                 </div>
 
                 <div className="mt-auto pt-3 border-t border-white/5 flex flex-col space-y-3">
@@ -609,15 +639,6 @@
                     >
                       <Icons.Star size={16} className={doc.isFavorite ? "fill-amber-400" : ""} />
                     </div>
-                    {!doc.isShared && (
-                      <div
-                        className={`cursor-pointer p-1.5 bg-navy-900/50 rounded transition-colors flex flex-1 items-center justify-center ${doc.isEmergencyAccessible ? 'text-emerald-400 hover:text-emerald-300' : 'hover:text-emerald-400'}`}
-                        onClick={(e) => handleToggleEmergencyAccess(doc, e)}
-                        title={doc.isEmergencyAccessible ? "Remove from emergency access" : "Allow emergency access"}
-                      >
-                        <Icons.Shield size={16} />
-                      </div>
-                    )}
                     {!doc.isShared && (
                       <div 
                         className="hover:text-red-400 cursor-pointer p-1.5 bg-navy-900/50 rounded transition-colors flex flex-1 items-center justify-center"
