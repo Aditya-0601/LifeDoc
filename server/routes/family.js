@@ -156,7 +156,7 @@ router.get('/emergency/:access_code', async (req, res) => {
     
     // First verify the access code
     const accessResult = await pool.query(
-      'SELECT * FROM family_access WHERE access_code = $1 AND is_active = 1',
+      "SELECT * FROM family_access WHERE access_code = $1 AND is_active = 1 AND status = 'approved'",
       [req.params.access_code]
     );
     
@@ -166,9 +166,12 @@ router.get('/emergency/:access_code', async (req, res) => {
       return res.status(401).json({ error: 'Invalid or inactive access code' });
     }
 
-    // Get all documents for the user
+    // Get only documents explicitly marked for emergency access
     const { rows: documents } = await pool.query(
-      'SELECT * FROM documents WHERE user_id = $1 ORDER BY created_at DESC',
+      `SELECT id, title, category, file_name, file_size, mime_type, description, expiry_date, created_at
+       FROM documents
+       WHERE user_id = $1 AND is_emergency_accessible = TRUE
+       ORDER BY created_at DESC`,
       [access.user_id]
     );
     

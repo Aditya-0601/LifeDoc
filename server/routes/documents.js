@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { authenticate } = require('../middleware/auth');
 const { getDb } = require('../config/database');
+const { encryptBuffer, decryptBuffer, isEncrypted } = require('../utils/fileCrypto');
 const router = express.Router();
 
 const optionalDependencies = {};
@@ -31,6 +32,50 @@ const getRequestBaseUrl = (req) => {
   const protocol = forwardedProto || req.protocol;
   const host = forwardedHost || req.get('host');
   return `${protocol}://${host}`;
+};
+
+const encryptFileInPlace = (filePath) => {
+  const plainBuffer = fs.readFileSync(filePath);
+  const encryptedBuffer = encryptBuffer(plainBuffer);
+  fs.writeFileSync(filePath, encryptedBuffer);
+  return encryptedBuffer.length;
+};
+
+const sharedAccessSql = `
+  d.id IN (
+    SELECT doc.id
+    FROM documents doc
+    JOIN family_access fa ON fa.user_id = doc.user_id
+    WHERE fa.family_member_email = (SELECT email FROM users WHERE id = $1)
+      AND fa.status = 'approved'
+      AND fa.is_active = 1
+      AND doc.is_emergency_accessible = TRUE
+  )
+`;
+
+const canReadDocumentWhere = `(d.user_id = $1 OR ${sharedAccessSql})`;
+
+const sendStoredFile = (res, document, options = {}) => {
+  const cleanPath = document.file_path.startsWith('/') ? document.file_path.slice(1) : document.file_path;
+  const filePath = path.join(__dirname, '../../', cleanPath);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File not found on server' });
+  }
+
+  let storedBuffer = fs.readFileSync(filePath);
+  if (!isEncrypted(storedBuffer)) {
+    storedBuffer = encryptBuffer(storedBuffer);
+    fs.writeFileSync(filePath, storedBuffer);
+  }
+  const plainBuffer = decryptBuffer(storedBuffer);
+
+  res.setHeader('Content-Type', document.mime_type || 'application/octet-stream');
+  res.setHeader(
+    'Content-Disposition',
+    `${options.inline ? 'inline' : 'attachment'}; filename="${encodeURIComponent(document.file_name)}"`
+  );
+  return res.send(plainBuffer);
 };
 
 // Ensure uploads directory exists
@@ -110,10 +155,12 @@ const mapDocument = (req, doc) => {
     createdAt: doc.created_at,
     fileName: doc.file_name,
     fileType: path.extname(doc.file_name || '').toLowerCase().replace('.', '') || 'unknown',
-    fileUrl: `${baseUrl}${doc.file_path}`,
+    fileUrl: `${baseUrl}/api/documents/${doc.id}/download?inline=1`,
     isShared: !!doc.is_shared,
     isLocked: !!doc.is_locked,
     isFavorite: !!doc.is_favorite,
+    isEmergencyAccessible: !!doc.is_emergency_accessible,
+    ocrTextPreview: doc.ocr_text ? doc.ocr_text.slice(0, 220) : '',
     ownerName: doc.owner_name,
     sharedByUserId: doc.is_shared ? doc.user_id : null,
     sharedByName: doc.is_shared ? doc.owner_name : null,
@@ -142,6 +189,7 @@ router.post('/upload', authenticate, (req, res) => {
       let finalFilePath = req.file.path;
       let finalSize = req.file.size;
       let detectedExpiryDate = null;
+      let extractedText = '';
       let isImage = false;
 
       // --- Smart Processing: OCR & Compression ---
@@ -173,6 +221,7 @@ router.post('/upload', authenticate, (req, res) => {
 
             console.log(`🔍 Running OCR on: ${req.file.originalname}`);
             const { data: { text } } = await Tesseract.recognize(compressedPath, 'eng');
+            extractedText = text || '';
             detectedExpiryDate = extractDateFromText(text);
           } catch (procErr) {
             console.warn('⚠️ Image processing (Sharp/OCR) failed, continuing with original:', procErr.message);
@@ -186,6 +235,7 @@ router.post('/upload', authenticate, (req, res) => {
             }
             const dataBuffer = fs.readFileSync(req.file.path);
             const data = await pdfParse(dataBuffer);
+            extractedText = data.text || '';
             detectedExpiryDate = extractDateFromText(data.text);
           } catch (procErr) {
             console.warn('⚠️ PDF parsing failed, continuing:', procErr.message);
@@ -201,9 +251,12 @@ router.post('/upload', authenticate, (req, res) => {
       const { title, category, description, expiry_date } = req.body;
 
       try {
+        finalSize = encryptFileInPlace(finalFilePath);
+        req.file.size = finalSize;
+
         const result = await pool.query(
-          `INSERT INTO documents (user_id, title, category, file_name, file_path, file_size, mime_type, description, expiry_date)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at`,
+          `INSERT INTO documents (user_id, title, category, file_name, file_path, file_size, mime_type, description, expiry_date, ocr_text, is_encrypted)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, TRUE) RETURNING id, created_at`,
           [
             req.userId,
             title || req.file.originalname,
@@ -213,7 +266,8 @@ router.post('/upload', authenticate, (req, res) => {
             finalSize,
             req.file.mimetype,
             description || '',
-            expiry_date || null
+            expiry_date || detectedExpiryDate || null,
+            extractedText
           ]
         );
 
@@ -249,8 +303,10 @@ router.post('/upload', authenticate, (req, res) => {
             file_name: req.file.originalname,
             file_path: relativePath,
             created_at: newDoc.created_at,
-            expiry_date: expiry_date || null,
+            expiry_date: expiry_date || detectedExpiryDate || null,
             description: description || '',
+            ocr_text: extractedText,
+            is_encrypted: true,
             mime_type: req.file.mimetype,
             file_size: finalSize,
             user_id: req.userId
@@ -295,10 +351,8 @@ router.get('/search', authenticate, async (req, res) => {
               u.email as owner_email
        FROM documents d
        LEFT JOIN users u ON d.user_id = u.id
-       WHERE (d.user_id = $1 OR d.user_id IN (
-           SELECT user_id FROM family_access WHERE family_member_email = (SELECT email FROM users WHERE id = $1) AND status = 'approved'
-       ))
-       AND (d.title ILIKE $2 OR d.category ILIKE $2 OR d.description ILIKE $2)
+       WHERE ${canReadDocumentWhere}
+       AND (d.title ILIKE $2 OR d.category ILIKE $2 OR d.description ILIKE $2 OR d.ocr_text ILIKE $2 OR d.file_name ILIKE $2)
        ORDER BY d.created_at DESC`,
       [req.userId, `%${q}%`]
     );
@@ -323,9 +377,7 @@ router.get('/', authenticate, async (req, res) => {
              u.email as owner_email
       FROM documents d
       LEFT JOIN users u ON d.user_id = u.id
-      WHERE (d.user_id = $1 OR d.user_id IN (
-          SELECT user_id FROM family_access WHERE family_member_email = (SELECT email FROM users WHERE id = $1) AND status = 'approved'
-      ))
+      WHERE ${canReadDocumentWhere}
     `;
     const params = [req.userId];
 
@@ -371,7 +423,7 @@ router.patch('/:id/lock', authenticate, async (req, res) => {
     const hashedPasscode = await bcrypt.hash(passcode.toString(), 10);
     
     await pool.query(
-      'UPDATE documents SET is_locked = 1, passcode_hash = $1 WHERE id = $2 AND user_id = $3',
+      'UPDATE documents SET is_locked = TRUE, passcode_hash = $1 WHERE id = $2 AND user_id = $3',
       [hashedPasscode, docId, req.userId]
     );
 
@@ -390,7 +442,10 @@ router.post('/:id/unlock', authenticate, async (req, res) => {
     const docId = parseInt(req.params.id);
 
     // Grab doc mapping (including shared permissions logic potentially if accessed, but here isolating to user validation)
-    const checkDoc = await pool.query('SELECT * FROM documents WHERE id = $1', [docId]);
+    const checkDoc = await pool.query(
+      `SELECT d.* FROM documents d WHERE d.id = $2 AND ${canReadDocumentWhere}`,
+      [req.userId, docId]
+    );
     const document = checkDoc.rows[0];
 
     if (!document) {
@@ -423,8 +478,8 @@ router.get('/:id', authenticate, async (req, res) => {
   try {
     const pool = getDb();
     const { rows } = await pool.query(
-      'SELECT * FROM documents WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.userId]
+      `SELECT d.* FROM documents d WHERE d.id = $2 AND ${canReadDocumentWhere}`,
+      [req.userId, req.params.id]
     );
 
     if (rows.length === 0) {
@@ -473,13 +528,45 @@ router.patch('/:id/favorite', authenticate, async (req, res) => {
   }
 });
 
+// Toggle whether this document is exposed through emergency family access
+router.patch('/:id/emergency-access', authenticate, async (req, res) => {
+  try {
+    const pool = getDb();
+    const docId = parseInt(req.params.id);
+
+    if (isNaN(docId)) {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
+
+    const { rows } = await pool.query(
+      'SELECT id, is_emergency_accessible FROM documents WHERE id = $1 AND user_id = $2',
+      [docId, req.userId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found or access denied' });
+    }
+
+    const newStatus = !rows[0].is_emergency_accessible;
+    await pool.query(
+      'UPDATE documents SET is_emergency_accessible = $1 WHERE id = $2 AND user_id = $3',
+      [newStatus, docId, req.userId]
+    );
+
+    res.json({ message: 'Emergency access setting updated', isEmergencyAccessible: newStatus });
+  } catch (error) {
+    console.error('Toggle Emergency Access Error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Download document
 router.get('/:id/download', authenticate, async (req, res) => {
   try {
     const pool = getDb();
     const { rows } = await pool.query(
-      'SELECT * FROM documents WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.userId]
+      `SELECT d.* FROM documents d WHERE d.id = $2 AND ${canReadDocumentWhere}`,
+      [req.userId, req.params.id]
     );
 
     const document = rows[0];
@@ -487,14 +574,7 @@ router.get('/:id/download', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    const cleanPath = document.file_path.startsWith('/') ? document.file_path.slice(1) : document.file_path;
-    const filePath = path.join(__dirname, '../../', cleanPath);
-
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'File not found on server' });
-    }
-
-    res.download(filePath, document.file_name);
+    return sendStoredFile(res, document, { inline: req.query.inline === '1' });
   } catch (error) {
     console.error('Download Document Error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -675,6 +755,7 @@ router.post('/:id/versions', authenticate, (req, res) => {
       let finalFilePath = req.file.path;
       let finalSize = req.file.size;
       let detectedExpiryDate = null;
+      let extractedText = '';
       let isImage = false;
 
       // Smart Processing: OCR & Compression
@@ -698,6 +779,7 @@ router.post('/:id/versions', authenticate, (req, res) => {
             req.file.filename = path.basename(compressedPath);
 
             const { data: { text } } = await Tesseract.recognize(compressedPath, 'eng');
+            extractedText = text || '';
             detectedExpiryDate = extractDateFromText(text);
           } catch (procErr) {
             console.warn('Image processing failed:', procErr.message);
@@ -710,6 +792,7 @@ router.post('/:id/versions', authenticate, (req, res) => {
             }
             const dataBuffer = fs.readFileSync(req.file.path);
             const data = await pdfParse(dataBuffer);
+            extractedText = data.text || '';
             detectedExpiryDate = extractDateFromText(data.text);
           } catch (procErr) {
             console.warn('PDF parsing failed:', procErr.message);
@@ -722,6 +805,9 @@ router.post('/:id/versions', authenticate, (req, res) => {
       const relativePath = `/uploads/${req.userId}/${req.file.filename}`;
 
       try {
+        finalSize = encryptFileInPlace(finalFilePath);
+        req.file.size = finalSize;
+
         await pool.query('BEGIN');
 
         // 1. Archive current document into document_versions
@@ -740,9 +826,10 @@ router.post('/:id/versions', authenticate, (req, res) => {
 
         // 2. Update documents table with new file info
         const result = await pool.query(
-          `UPDATE documents SET file_name = $1, file_path = $2, file_size = $3, mime_type = $4, created_at = CURRENT_TIMESTAMP
-           WHERE id = $5 RETURNING *`,
-          [req.file.originalname, relativePath, finalSize, req.file.mimetype, existingDoc.id]
+          `UPDATE documents
+           SET file_name = $1, file_path = $2, file_size = $3, mime_type = $4, ocr_text = $5, is_encrypted = TRUE, created_at = CURRENT_TIMESTAMP
+           WHERE id = $6 RETURNING *`,
+          [req.file.originalname, relativePath, finalSize, req.file.mimetype, extractedText, existingDoc.id]
         );
 
         await pool.query('COMMIT');
@@ -787,13 +874,7 @@ router.get('/version/:vid/download', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Version not found or access denied' });
     }
 
-    const filePath = path.join(__dirname, '../..', version.file_path);
-
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'Historical file securely removed or missing from server' });
-    }
-
-    res.download(filePath, version.file_name);
+    return sendStoredFile(res, version);
   } catch (error) {
     console.error('Download Version Error:', error);
     res.status(500).json({ error: 'Server error parsing historical file' });

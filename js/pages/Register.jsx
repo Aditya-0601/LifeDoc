@@ -52,7 +52,7 @@
           <GlassCard className="p-8">
             <div className="text-center mb-8">
               <h1 className="text-2xl font-display font-bold text-white mb-2">Create your Vault</h1>
-              <p className="text-slate-400 text-sm">Setup your secure end-to-end encrypted account</p>
+              <p className="text-slate-400 text-sm">Set up your secure encrypted document vault</p>
             </div>
 
             {error && (

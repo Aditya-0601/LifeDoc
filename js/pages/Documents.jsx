@@ -30,6 +30,7 @@
     const [unlockError, setUnlockError] = useState('');
     const [lockLoading, setLockLoading] = useState(false);
     const [unlockLoading, setUnlockLoading] = useState(false);
+    const [previewUrl, setPreviewUrl] = useState('');
     
     // Deletion Modal State
     const [confirmDeleteDocId, setConfirmDeleteDocId] = useState(null);
@@ -90,12 +91,39 @@
 
     useEffect(() => {
       setImgError(false);
+      setPreviewUrl('');
       if (selectedDocument && !selectedDocument.isShared) {
         fetchVersions(selectedDocument.id);
       } else {
         setDocVersions([]);
       }
     }, [selectedDocument]);
+
+    useEffect(() => {
+      if (!isPreviewOpen || !selectedDocument?.fileUrl) return;
+
+      let objectUrl = '';
+      const loadPreview = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(selectedDocument.fileUrl, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          });
+          if (!response.ok) throw new Error('Unable to load preview.');
+          const blob = await response.blob();
+          objectUrl = URL.createObjectURL(blob);
+          setPreviewUrl(objectUrl);
+        } catch (err) {
+          setImgError(true);
+          showError(err.message || 'Failed to load secure preview.');
+        }
+      };
+
+      loadPreview();
+      return () => {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+      };
+    }, [isPreviewOpen, selectedDocument]);
 
     const fetchVersions = async (id) => {
       try {
@@ -223,6 +251,26 @@
         setDocs(currentDocs => 
           currentDocs.map(d => d.id === doc.id ? { ...d, isFavorite: doc.isFavorite } : d)
         );
+      }
+    };
+
+    const handleToggleEmergencyAccess = async (doc, e) => {
+      e.stopPropagation();
+      if (doc.isShared) return;
+
+      const newStatus = !doc.isEmergencyAccessible;
+      setDocs(currentDocs =>
+        currentDocs.map(d => d.id === doc.id ? { ...d, isEmergencyAccessible: newStatus } : d)
+      );
+
+      try {
+        await api.patch(`/documents/${doc.id}/emergency-access`);
+        showSuccess(newStatus ? 'Emergency access enabled for this document.' : 'Emergency access removed.');
+      } catch (err) {
+        setDocs(currentDocs =>
+          currentDocs.map(d => d.id === doc.id ? { ...d, isEmergencyAccessible: doc.isEmergencyAccessible } : d)
+        );
+        showError(err.response?.data?.error || 'Failed to update emergency access.');
       }
     };
 
@@ -396,11 +444,19 @@
       const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileType);
       const isPdf = fileType === 'pdf';
 
+      if (!previewUrl && !imgError) {
+        return (
+          <div className="w-full flex items-center justify-center text-slate-500 min-h-[350px]">
+            Loading secure preview...
+          </div>
+        );
+      }
+
       if (isImage && !imgError) {
         return (
           <div className="flex items-center justify-center h-full w-full bg-navy-900/30 rounded-xl p-4 border border-white/5 min-h-[350px]">
             <img 
-              src={selectedDocument.fileUrl} 
+              src={previewUrl} 
               alt={selectedDocument.name || 'Document Preview'} 
               className="max-w-full max-h-[400px] object-contain rounded-lg shadow-lg"
               onError={() => setImgError(true)}
@@ -412,7 +468,7 @@
           <div className="flex flex-col h-full w-full group relative">
             <div className="flex flex-col items-center justify-center w-full min-h-[450px] bg-navy-900/50 rounded-xl overflow-hidden border border-white/10">
               <iframe 
-                src={`${selectedDocument.fileUrl}#toolbar=0&navpanes=0&scrollbar=0`} 
+                src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0`} 
                 className="w-full h-[450px] border-none"
                 title="PDF Preview"
               />
@@ -460,7 +516,7 @@
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search documents by name, category, or tags..."
+              placeholder="Search documents by name, category, or OCR text..."
               className="w-full bg-navy-800/50 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/50 focus:bg-navy-800 transition-all"
             />
           </div>
@@ -553,6 +609,15 @@
                     >
                       <Icons.Star size={16} className={doc.isFavorite ? "fill-amber-400" : ""} />
                     </div>
+                    {!doc.isShared && (
+                      <div
+                        className={`cursor-pointer p-1.5 bg-navy-900/50 rounded transition-colors flex flex-1 items-center justify-center ${doc.isEmergencyAccessible ? 'text-emerald-400 hover:text-emerald-300' : 'hover:text-emerald-400'}`}
+                        onClick={(e) => handleToggleEmergencyAccess(doc, e)}
+                        title={doc.isEmergencyAccessible ? "Remove from emergency access" : "Allow emergency access"}
+                      >
+                        <Icons.Shield size={16} />
+                      </div>
+                    )}
                     {!doc.isShared && (
                       <div 
                         className="hover:text-red-400 cursor-pointer p-1.5 bg-navy-900/50 rounded transition-colors flex flex-1 items-center justify-center"
@@ -714,7 +779,7 @@
                            variant="secondary"
                            onClick={(e) => {
                              e.stopPropagation();
-                             window.open(selectedDocument.fileUrl, '_blank');
+                             openUrlWithAuth(selectedDocument.fileUrl);
                            }}
                            className="flex items-center justify-center bg-white/5 hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-400 border border-white/10 hover:border-cyan-500/50 transition-colors"
                          >

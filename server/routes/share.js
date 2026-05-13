@@ -1,7 +1,29 @@
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
 const { getDb } = require('../config/database');
 const { authenticate } = require('../middleware/auth');
+const { encryptBuffer, decryptBuffer, isEncrypted } = require('../utils/fileCrypto');
 const router = express.Router();
+
+const sendSharedFile = (res, document) => {
+  const cleanPath = document.file_path.startsWith('/') ? document.file_path.slice(1) : document.file_path;
+  const filePath = path.join(__dirname, '../../', cleanPath);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File not found on server' });
+  }
+
+  let storedBuffer = fs.readFileSync(filePath);
+  if (!isEncrypted(storedBuffer)) {
+    storedBuffer = encryptBuffer(storedBuffer);
+    fs.writeFileSync(filePath, storedBuffer);
+  }
+  const plainBuffer = decryptBuffer(storedBuffer);
+  res.setHeader('Content-Type', document.mime_type || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(document.file_name)}"`);
+  return res.send(plainBuffer);
+};
 
 // Generate share link for document
 router.post('/generate', authenticate, async (req, res) => {
@@ -50,6 +72,27 @@ router.post('/generate', authenticate, async (req, res) => {
 });
 
 // Access shared document
+router.get('/:token([a-fA-F0-9]{64})', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const pool = getDb();
+
+    const linkResult = await pool.query(
+      'SELECT d.*, sl.expires_at FROM shared_links sl JOIN documents d ON sl.document_id = d.id WHERE sl.token = $1 AND (sl.expires_at IS NULL OR sl.expires_at > NOW())',
+      [token]
+    );
+
+    if (linkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid or expired share link' });
+    }
+
+    return sendSharedFile(res, linkResult.rows[0]);
+  } catch (error) {
+    console.error('Shared document download error:', error);
+    res.status(500).json({ error: 'Failed to access shared document' });
+  }
+});
+
 router.get('/shared/:token', async (req, res) => {
   try {
     const { token } = req.params;

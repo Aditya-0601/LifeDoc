@@ -25,8 +25,7 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded files
-app.use('/uploads', express.static(uploadsDir));
+// Uploaded files are encrypted at rest and are only streamed through authenticated routes.
 
 // Database initialization
 const db = require('./config/database');

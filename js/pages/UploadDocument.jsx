@@ -16,6 +16,8 @@
     const [file, setFile] = useState(null);
     const [title, setTitle] = useState('');
     const [category, setCategory] = useState('identity');
+    const [expiryDate, setExpiryDate] = useState('');
+    const [description, setDescription] = useState('');
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [error, setError] = useState('');
@@ -67,6 +69,8 @@ const allowedTypes = [
       formData.append('file', file);
       formData.append('title', title);
       formData.append('category', category);
+      formData.append('expiry_date', expiryDate);
+      formData.append('description', description);
 
       try {
         await api.post('/documents/upload', formData, {
@@ -95,7 +99,7 @@ const allowedTypes = [
       >
         <div className="mb-8">
           <h1 className="text-3xl font-display font-bold text-white tracking-tight">Upload Document</h1>
-          <p className="text-slate-400 mt-1">All files are encrypted client-side before touching our servers.</p>
+          <p className="text-slate-400 mt-1">Files are encrypted at rest after smart OCR processing.</p>
         </div>
 
         {error && (
@@ -174,6 +178,27 @@ const allowedTypes = [
                   <option value="other">Other</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Expiry Date</label>
+                <input
+                  type="date"
+                  value={expiryDate}
+                  onChange={(e) => setExpiryDate(e.target.value)}
+                  className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500"
+                  disabled={uploading}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Notes</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows="3"
+                  className="w-full bg-navy-900 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 resize-none"
+                  placeholder="Optional keywords or details for search"
+                  disabled={uploading}
+                />
+              </div>
             </div>
 
             {uploading ? (
@@ -201,8 +226,8 @@ const allowedTypes = [
         <div className="mt-8 flex items-start space-x-3 bg-indigo-500/10 border border-indigo-500/20 p-4 rounded-xl text-indigo-300 text-sm">
           <Icons.Shield size={20} className="shrink-0 text-indigo-400" />
           <p>
-            <strong className="text-indigo-200">End-to-end Encrypted.</strong> We use AES-256-GCM encryption.
-            Your private key remains on your device. We never see the contents of what you upload.
+            <strong className="text-indigo-200">Encrypted at rest.</strong> Uploaded files are stored with AES-256-GCM encryption
+            and are decrypted only through authenticated download or preview routes.
           </p>
         </div>
       </motion.div>

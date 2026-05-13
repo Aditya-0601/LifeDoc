@@ -125,7 +125,7 @@
             <section id="security" className="py-24 text-center max-w-3xl mx-auto px-6">
               <Icons.Shield className="w-16 h-16 text-cyan-400 mx-auto mb-6 opacity-80" />
               <h2 className="text-3xl font-display font-bold mb-6">Bank-Grade Trust</h2>
-              <p className="text-slate-400 text-lg mb-8 text-balance">We employ end-to-end AES-256 encryption. Your keys never leave your devices, meaning even we cannot access your stored life documents.</p>
+              <p className="text-slate-400 text-lg mb-8 text-balance">We store documents with AES-256-GCM encryption at rest and only stream files through authenticated access checks.</p>
               <Link to="/register">
                 <Button className="relative z-20 cursor-pointer shadow-[0_0_20px_rgba(6,182,212,0.4)] px-8 py-4">Secure Your Documents Now</Button>
               </Link>

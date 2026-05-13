@@ -56,6 +56,9 @@ const createTables = () => {
         file_size INTEGER,
         mime_type VARCHAR(100),
         description TEXT,
+        ocr_text TEXT,
+        is_emergency_accessible BOOLEAN DEFAULT FALSE,
+        is_encrypted BOOLEAN DEFAULT TRUE,
         is_favorite INTEGER DEFAULT 0,
         is_locked BOOLEAN DEFAULT FALSE,
         passcode_hash VARCHAR(255),
@@ -160,6 +163,21 @@ const createTables = () => {
       try {
         await pool.query('ALTER TABLE documents ADD COLUMN passcode_hash VARCHAR(255)');
         console.log('✅ Added passcode_hash column to documents table');
+      } catch(e) { /* Ignore if it already exists */ }
+
+      try {
+        await pool.query('ALTER TABLE documents ADD COLUMN ocr_text TEXT');
+        console.log('✅ Added ocr_text column to documents table');
+      } catch(e) { /* Ignore if it already exists */ }
+
+      try {
+        await pool.query('ALTER TABLE documents ADD COLUMN is_emergency_accessible BOOLEAN DEFAULT FALSE');
+        console.log('✅ Added is_emergency_accessible column to documents table');
+      } catch(e) { /* Ignore if it already exists */ }
+
+      try {
+        await pool.query('ALTER TABLE documents ADD COLUMN is_encrypted BOOLEAN DEFAULT TRUE');
+        console.log('✅ Added is_encrypted column to documents table');
       } catch(e) { /* Ignore if it already exists */ }
       
       try {
